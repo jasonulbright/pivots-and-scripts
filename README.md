@@ -52,11 +52,13 @@ Resolve targets in one of four ways:
 | Pattern | A device name with wildcards, for example `CLIENT*`. |
 | List | Device names separated by commas, semicolons or lines. **Import** reads a TXT file, or a CSV file with a `Device` column. |
 
-The target snapshot is fixed until you resolve again. The Devices tab shows each device with its client and active state. Unknown names stay in the status line. Devices without a Configuration Manager client are skipped at run time and show **Not a client**.
+The target snapshot is fixed until you resolve again.
+
+Each run is one operation in Configuration Manager, as in the console. For a collection target, the app sends the operation to the collection, and the site sends it to the members. For other targets, the app sends one operation for the device list. While it waits, the app reads the results of all devices with one request every 3 seconds. The Devices tab shows each device with its client and active state. Unknown names stay in the status line. Devices without a Configuration Manager client are skipped at run time and show **Not a client**.
 
 ### CMPivot
 
-Open a query from the library, open a `.cmpivot` or `.kql` file, or type the query. **Ctrl+Space** opens the starter entities and operators. **Run CMPivot** asks for confirmation, then sends the query to each device and shows results as each device answers. The administration service returns HTTP 400 without a reason for an invalid query; the device detail says to check the query syntax.
+Open a query from the library, open a `.cmpivot` or `.kql` file, or type the query. **Ctrl+Space** opens the starter entities and operators. **Run CMPivot** asks for confirmation, then sends the query and shows results as each device answers. The administration service returns HTTP 400 without a reason for an invalid query; the device detail says to check the query syntax.
 
 ### Run Scripts
 
@@ -66,7 +68,7 @@ Run Scripts executes only scripts that Configuration Manager has approved. Confi
 2. **Submit** creates the script in Configuration Manager. The app stores the parameter definitions from the `param()` block with the script, so the site can pass values to it. The script waits for approval.
 3. Obtain approval. **Site scripts** lists the scripts on the site with state, author and approver. An account with **Approve** on **SMS Scripts** can approve or deny a script there, with a comment, or remove it. By default, the site does not let an author approve or deny their own script; the app shows that reason. Scripts that belong to a Configuration Manager feature, such as the built-in CMPivot script, are not listed and cannot be changed.
 4. **Parameters** shows a field for each parameter, with its default value.
-5. **Run approved script** lists the script GUID and the parameter values, then runs the approved site script on each device. The editor text is not sent; changes after submission need a new submission and approval.
+5. **Run approved script** lists the script GUID and the parameter values, then runs the approved site script on the targets. The editor text is not sent; changes after submission need a new submission and approval.
 
 **Options > Run Scripts > Approve scripts after submission** approves each new script right after Submit. It is off by default. It works only where the site lets authors approve their own scripts; Microsoft recommends that setting only in a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.
 
@@ -111,7 +113,7 @@ Queries and scripts are ordinary files in `Library\` or any folder you choose. P
 
 ## Limits
 
-- Submission and polling run one device at a time. There is no batched collection operation.
+- A collection target runs on the members at the time of the run. Members added after Resolve also answer and appear in the results.
 - There is no scheduler, no automatic script cleanup and no remediation pipeline.
 - Editor completion is a starter word list.
 

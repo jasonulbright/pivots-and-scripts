@@ -31,71 +31,75 @@ try {
         Send-Event 'Raw' ([pscustomobject]@{Device='';Phase='Script';Response=$site})
         $cim = New-PasCimSession $Request.Provider
     }
-    $jobs = [Collections.Generic.List[object]]::new()
-    $targets = @($Request.Targets)
-    for ($index = 0; $index -lt $targets.Count; $index++) {
-        $target = $targets[$index]
-        if ($Control.Stop) {
-            foreach ($rest in $targets[$index..($targets.Count-1)]) { Send-Device ([pscustomobject]@{Device=$rest.Device;ResourceID=$rest.ResourceID;OperationID=$null;ExitCode=$null}) 'Not submitted' 'Stopped before submission.' }
+    # One operation per run; the site fans it out to the clients, as the console does.
+    $jobs = @{}
+    foreach ($target in @($Request.Targets)) {
+        $job=[pscustomobject]@{Device=$target.Device;ResourceID=[int]$target.ResourceID;OperationID=$null;ExitCode=$null;Finished=$false}
+        if ($target.PSObject.Properties['Client'] -and $target.Client -eq $false) { Send-Device $job 'Not a client' 'The device has no Configuration Manager client.'; continue }
+        $jobs[[string]$job.ResourceID] = $job
+    }
+    if (-not $jobs.Count) { return }
+    if ($Control.Stop) { foreach ($job in $jobs.Values) { Send-Device $job 'Not submitted' 'Stopped before submission.' }; return }
+    $ids = @($jobs.Values | ForEach-Object { $_.ResourceID } | Sort-Object)
+    $collectionId = [string]$Request.CollectionId
+    try {
+        if ($Request.Mode -eq 'Pivot') { $operations = @(Start-PasPivotRun -SMSProvider $Request.Provider -Query $Request.Text -CollectionId $collectionId -ResourceIds $ids) }
+        else { $operations = @(Start-PasScriptRun -ScriptGuid $Request.ScriptGuid -Arguments $arguments -CollectionId $collectionId -ResourceIds $ids) }
+    } catch { foreach ($job in $jobs.Values) { Send-Device $job 'Submission error' $_.Exception.Message }; return }
+    foreach ($operation in $operations) { Send-Event 'Raw' ([pscustomobject]@{Device='';Phase='Submit';Response=$(if ($operation.PSObject.Properties['Raw']) { $operation.Raw } else { $operation })}) }
+    if (@($operations | Where-Object { $null -eq $_.OperationID }).Count) {
+        foreach ($job in $jobs.Values) { Send-Device $job 'Submitted, no operation ID' 'The site accepted the run but returned no operation ID. Check Monitoring > Script Status before running again.' }
+        return
+    }
+    foreach ($job in $jobs.Values) { $job.OperationID = $operations[0].OperationID }
+
+    foreach ($job in $jobs.Values) { Send-Device $job 'Waiting' }
+    $started = [DateTime]::UtcNow; $lastError = ''
+    while (-not $Control.Stop) {
+        foreach ($operation in $operations) {
+            if ($Control.Stop) { break }
+            try {
+                if ($Request.Mode -eq 'Pivot') { $statusRows = @(Get-PasPivotStatus -SMSProvider $Request.Provider -OperationID $operation.OperationID) }
+                else { $statusRows = @(Get-PasScriptRunStatus -CimSession $cim -SiteCode $Request.SiteCode -OperationID $operation.OperationID) }
+                $lastError = ''
+            } catch { if ($_.Exception.Data['StatusCode'] -ne 404) { $lastError = $_.Exception.Message }; continue }
+            foreach ($status in $statusRows) {
+                # State 0 is a row that exists before the client reports.
+                if ([int]$status.ScriptExecutionState -eq 0) { continue }
+                $key = [string]$status.ResourceId
+                $job = $jobs[$key]
+                if (-not $job) { $job = [pscustomobject]@{Device=[string]$status.DeviceName;ResourceID=[int]$status.ResourceId;OperationID=$operation.OperationID;ExitCode=$null;Finished=$false}; $jobs[$key] = $job }
+                if ($job.Finished) { continue }
+                Send-Event 'Raw' ([pscustomobject]@{Device=$job.Device;Phase='Result';Response=$status})
+                $job.ExitCode = $status.ScriptExitCode
+                $errorText = if ($status.PSObject.Properties['ErrorMessage']) { [string]$status.ErrorMessage } else { '' }
+                $failed = [int64]$status.ScriptExitCode -ne 0 -or [int]$status.ScriptExecutionState -eq 2 -or -not [string]::IsNullOrWhiteSpace($errorText)
+                $detail = ''
+                if ($Request.Mode -eq 'Pivot') {
+                    $parsed = ConvertFrom-PasPivotOutput -Output ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID
+                    $rows = @($parsed.Rows)
+                    if ($parsed.MoreResults) { $detail = 'The site returned part of the results for this device.' }
+                    $state = if ($failed) { 'Query failed' } else { 'Response received' }
+                } else {
+                    $rows = @(Convert-PasRows -Payload ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID)
+                    $state = if ($failed) { 'Script failed' } else { 'Response received' }
+                }
+                if ($failed) { $detail = (@("Exit code $($status.ScriptExitCode), execution state $($status.ScriptExecutionState).", $errorText) | Where-Object { $_ }) -join ' ' }
+                foreach ($row in $rows) { Send-Event 'Row' $row }
+                $job.Finished = $true
+                Send-Device $job $state $detail
+            }
+        }
+        $pending = @($jobs.Values | Where-Object { -not $_.Finished })
+        if (-not $pending.Count -or $Control.Stop) { break }
+        # A device is timed out only after a poll that found no result for it.
+        if (([DateTime]::UtcNow - $started).TotalSeconds -gt $Request.TimeoutSeconds) {
+            foreach ($job in $pending) { $job.Finished = $true; if ($lastError) { Send-Device $job 'Result error' $lastError } else { Send-Device $job 'No response within timeout' 'No result arrived. The device can still run the operation.' } }
             break
         }
-        $job=[pscustomobject]@{Device=$target.Device;ResourceID=$target.ResourceID;OperationID=$null;ExitCode=$null;State='Waiting';Started=[DateTime]::UtcNow;Finished=$false;LastError='';Polled=$false}
-        if ($target.PSObject.Properties['Client'] -and $target.Client -eq $false) { Send-Device $job 'Not a client' 'The device has no Configuration Manager client.'; continue }
-        try {
-            if ($Request.Mode -eq 'Pivot') {
-                $started = Start-PasPivot -SMSProvider $Request.Provider -ResourceID $target.ResourceID -Query $Request.Text
-                $job.OperationID = $started.OperationID
-                Send-Event 'Raw' ([pscustomobject]@{Device=$target.Device;Phase='Submit';Response=$started.Raw})
-            } else {
-                $started = Invoke-PasManagedScript -ScriptGuid $Request.ScriptGuid -ResourceID $target.ResourceID -Arguments $arguments
-                Send-Event 'Raw' ([pscustomobject]@{Device=$target.Device;Phase='Submit';Response=$started})
-                if ($null -eq $started.OperationID) { Send-Device $job 'Submitted, no operation ID' 'The site accepted the run but returned no operation ID. Check Monitoring > Script Status before running again.'; continue }
-                $job.OperationID = $started.OperationID
-            }
-            $jobs.Add($job)
-            Send-Device $job 'Waiting'
-        } catch { Send-Device $job 'Submission error' $_.Exception.Message }
+        Start-Sleep -Milliseconds 3000
     }
-    while (@($jobs | Where-Object { -not $_.Finished }).Count -gt 0 -and -not $Control.Stop) {
-        foreach ($job in @($jobs | Where-Object { -not $_.Finished })) {
-            if ($Control.Stop) { break }
-            $raw = $null
-            try {
-                if ($Request.Mode -eq 'Pivot') { $raw = Get-PasPivotResult -SMSProvider $Request.Provider -ResourceID $job.ResourceID -OperationID $job.OperationID }
-                else { $raw = Get-PasScriptStatus -CimSession $cim -SiteCode $Request.SiteCode -OperationID $job.OperationID -ResourceID $job.ResourceID }
-                $job.LastError = ''
-            } catch {
-                $code = $_.Exception.Data['StatusCode']
-                if (-not ($Request.Mode -eq 'Pivot' -and $code -eq 404)) { $job.LastError = $_.Exception.Message }
-            }
-            $job.Polled = $true
-            if ($null -eq $raw) {
-                # A device is timed out only after a poll that found no result.
-                if (([DateTime]::UtcNow-$job.Started).TotalSeconds -gt $Request.TimeoutSeconds) {
-                    $job.Finished=$true
-                    if ($job.LastError) { Send-Device $job 'Result error' $job.LastError } else { Send-Device $job 'No response within timeout' 'No result arrived. The device can still run the operation.' }
-                }
-                continue
-            }
-            Send-Event 'Raw' ([pscustomobject]@{Device=$job.Device;Phase='Result';Response=$raw})
-            $detail = ''
-            if ($Request.Mode -eq 'Script') {
-                $job.ExitCode = $raw.ScriptExitCode
-                $rows = @(Convert-PasRows -Payload ([string]$raw.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID)
-                $state = if ([int64]$raw.ScriptExitCode -ne 0 -or [int]$raw.ScriptExecutionState -eq 2) { 'Script failed' } else { 'Response received' }
-                if ($state -eq 'Script failed') { $detail = "Exit code $($raw.ScriptExitCode), execution state $($raw.ScriptExecutionState)." }
-            } else {
-                $rows = @(Convert-PasRows -Payload $raw -Device $job.Device -ResourceID $job.ResourceID)
-                $state = 'Response received'
-                if ($raw.PSObject.Properties['value'] -and $null -ne $raw.value -and $raw.value.PSObject.Properties['MoreResult'] -and $raw.value.MoreResult -eq $true) { $detail = 'The provider reported more results than it returned.' }
-            }
-            foreach ($row in $rows) { Send-Event 'Row' $row }
-            $job.Finished=$true
-            Send-Device $job $state $detail
-        }
-        if (-not $Control.Stop -and @($jobs | Where-Object { -not $_.Finished }).Count) { Start-Sleep -Milliseconds 2000 }
-    }
-    if ($Control.Stop) { foreach ($job in @($jobs | Where-Object { -not $_.Finished })) { Send-Device $job 'Stopped waiting' 'The operation was sent and can still run on the device.' } }
+    if ($Control.Stop) { foreach ($job in @($jobs.Values | Where-Object { -not $_.Finished })) { Send-Device $job 'Stopped waiting' 'The operation was sent and can still run on the device.' } }
 } catch { Send-Event 'Error' $_.Exception.Message }
 finally {
     if ($cim) { Remove-CimSession $cim }
