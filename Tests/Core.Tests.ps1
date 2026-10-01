@@ -329,6 +329,109 @@ function Get-PasSiteScripts { param($SMSProvider,$SiteCode) [pscustomobject]@{Na
     }
 }
 
+Describe 'Batched runs' {
+    BeforeAll { $script:module = Get-Module PivotsAndScripts }
+
+    It 'reads CMPivot status output as rows with the trusted device identity' {
+        $output = '<result ResultCode="0" moreResults="False"><e _i="0" Caption="Windows 11" Device="spoofed" /><e _i="1" Caption="Second" /></result>'
+        $parsed = ConvertFrom-PasPivotOutput -Output $output -Device 'CLIENT01' -ResourceID 16777221
+        $parsed.MoreResults | Should -BeFalse
+        $parsed.Rows.Count | Should -Be 2
+        $parsed.Rows[0].Caption | Should -Be 'Windows 11'
+        $parsed.Rows[0].TargetResourceID | Should -Be 16777221
+        $parsed.Rows[0].PSObject.Properties['_i'] | Should -BeNullOrEmpty
+        (ConvertFrom-PasPivotOutput -Output '<result ResultCode="0" moreResults="True"></result>' -Device 'D' -ResourceID 1).MoreResults | Should -BeTrue
+        (ConvertFrom-PasPivotOutput -Output '' -Device 'D' -ResourceID 1).Rows.Count | Should -Be 0
+    }
+    It 'sends one CMPivot request for a collection and one for a device list' {
+        & $script:module {
+            $script:calls = [Collections.Generic.List[object]]::new()
+            function Invoke-PasAdminService { param($SMSProvider,$RelativePath,$Method,$Body) $script:calls.Add([pscustomobject]@{Path=$RelativePath;Body=$Body}); [pscustomobject]@{OperationId=100 + $script:calls.Count} }
+            $ops = @(Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -CollectionId 'SMS00001')
+            if ($ops.Count -ne 1 -or $script:calls[0].Path -ne "Collections('SMS00001')/AdminService.RunCMPivot") { throw "Collection run sent $($script:calls.Count) requests to $($script:calls[0].Path)." }
+            $script:calls.Clear()
+            $ops = @(Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -ResourceIds (1..1201))
+            if ($ops.Count -ne 1 -or $script:calls.Count -ne 1) { throw "1201 devices sent $($script:calls.Count) requests." }
+            if (@($script:calls[0].Body.ResourceIds -split ',').Count -ne 1201 -or $script:calls[0].Path -ne 'SMS_CMPivotStatus/AdminService.RunCMPivot') { throw 'The selection request is wrong.' }
+            $failed = $false; try { Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -CollectionId "SMS00001')/x" } catch { $failed = $true }
+            if (-not $failed) { throw 'A malformed collection ID reached the URL.' }
+        }
+    }
+    It 'sends one Run Scripts request for a collection and one for a device list' {
+        & $script:module {
+            $script:invokes = [Collections.Generic.List[object]]::new(); $script:queries = 0
+            function Invoke-CMWmiQuery { param($Query,$Option) $script:queries++; foreach ($id in ([regex]::Match($Query,'IN \((.*)\)').Groups[1].Value -split ',')) { [pscustomobject]@{ResourceID=[int]$id} } }
+            function Invoke-CMScript { param($ScriptGuid,$CollectionId,$Device,$ScriptParameter,[switch]$PassThru) $script:invokes.Add([pscustomobject]@{CollectionId=$CollectionId;Devices=@($Device).Count}); [pscustomobject]@{OperationID=555;ReturnValue=0} }
+            $ops = @(Start-PasScriptRun -ScriptGuid ([guid]::NewGuid()) -CollectionId 'SMS00001')
+            if ($ops.Count -ne 1 -or $script:invokes[0].CollectionId -ne 'SMS00001' -or $script:queries -ne 0) { throw 'Collection run is wrong.' }
+            $script:invokes.Clear()
+            $ops = @(Start-PasScriptRun -ScriptGuid ([guid]::NewGuid()) -ResourceIds (1..1201))
+            if ($script:invokes.Count -ne 1 -or $script:invokes[0].Devices -ne 1201 -or $script:queries -ne 1) { throw "Device list sent $($script:invokes.Count) runs with $($script:invokes[0].Devices) devices after $($script:queries) queries." }
+        }
+    }
+}
+
+Describe 'Worker run' {
+    BeforeAll {
+        # The stub is the real module with the site calls replaced; calls are logged to a file.
+        $script:log = Join-Path $TestDrive 'calls.log'
+        $real = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\Module\PivotsAndScripts.psm1'))
+        $real = $real.Replace("Join-Path `$PSScriptRoot '..\Lib\SuiteCommon\SuiteCommon.psd1'", "'" + (Join-Path $PSScriptRoot '..\Lib\SuiteCommon\SuiteCommon.psd1') + "'")
+        $overrides = @'
+function Assert-PasConnection { param($SiteCode,$SMSProvider) }
+function New-PasCimSession { param($SMSProvider) $null }
+function Start-PasPivotRun { param($SMSProvider,$Query,$CollectionId,$ResourceIds) Add-Content -LiteralPath 'LOG' -Value ("pivot|$CollectionId|" + (@($ResourceIds) -join ',')); [pscustomobject]@{OperationID=900;Raw=[pscustomobject]@{OperationId=900}} }
+function Get-PasPivotStatus { param($SMSProvider,$OperationID) Add-Content -LiteralPath 'LOG' -Value 'poll'
+    [pscustomobject]@{ResourceId=11;DeviceName='PC-11';ScriptExecutionState=1;ScriptExitCode=0;ErrorMessage='';ScriptOutput='<result ResultCode="0" moreResults="False"><e _i="0" Caption="A" /></result>'}
+    [pscustomobject]@{ResourceId=12;DeviceName='PC-12';ScriptExecutionState=0;ScriptExitCode=0;ErrorMessage='';ScriptOutput=''}
+    if ($env:PAS_TEST_EXTRA) { [pscustomobject]@{ResourceId=99;DeviceName='PC-99';ScriptExecutionState=1;ScriptExitCode=0;ErrorMessage='';ScriptOutput='<result ResultCode="0" moreResults="True"><e _i="0" Caption="Z" /></result>'} } }
+function Get-PasSiteScript { param($SMSProvider,$SiteCode,$ScriptGuid) [pscustomobject]@{ScriptGuid=[string]$ScriptGuid;ScriptName='S';ApprovalState=3;Parameters=@();DefinitionError=''} }
+function Start-PasScriptRun { param($ScriptGuid,$Arguments,$CollectionId,$ResourceIds) Add-Content -LiteralPath 'LOG' -Value ("script|$CollectionId|" + (@($ResourceIds) -join ',')); [pscustomobject]@{OperationID=901;ReturnValue=0} }
+function Get-PasScriptRunStatus { param($CimSession,$SiteCode,$OperationID) Add-Content -LiteralPath 'LOG' -Value 'poll'
+    [pscustomobject]@{ResourceId=11;DeviceName='PC-11';ScriptExecutionState=2;ScriptExitCode=1;ScriptOutput=''}
+    [pscustomobject]@{ResourceId=12;DeviceName='PC-12';ScriptExecutionState=1;ScriptExitCode=0;ScriptOutput='{\"Name\":\"Spooler\"}'} }
+'@.Replace('LOG', $script:log)
+        $script:stub = Join-Path $TestDrive 'Stub.psm1'
+        Set-Content -LiteralPath $script:stub -Value ($real.Replace('Export-ModuleMember -Function *-Pas*', $overrides + "`r`nExport-ModuleMember -Function *-Pas*"))
+        function script:Invoke-Worker { param([hashtable]$Request)
+            $queue = [Collections.Concurrent.ConcurrentQueue[object]]::new(); $ps = [PowerShell]::Create()
+            try { [void]$ps.AddScript([IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\Module\Execute.ps1'))).AddArgument($Request).AddArgument($queue).AddArgument([hashtable]::Synchronized(@{Stop=$false})); $null = $ps.Invoke() } finally { $ps.Dispose() }
+            @($queue.ToArray())
+        }
+        $script:targets = @([pscustomobject]@{Device='PC-11';ResourceID=11;Client=$true;Active=$true},[pscustomobject]@{Device='PC-12';ResourceID=12;Client=$true;Active=$true},[pscustomobject]@{Device='NC';ResourceID=13;Client=$false;Active=$false})
+    }
+    BeforeEach { if (Test-Path -LiteralPath $script:log) { Remove-Item -LiteralPath $script:log } ; $env:PAS_TEST_EXTRA = '' }
+    It 'submits one CMPivot operation for the device list and reads all devices in each poll' {
+        $events = Invoke-Worker @{Module=$script:stub;SiteCode='MCM';Provider='p';Action='Run';Mode='Pivot';Text='OS';Targets=$script:targets;CollectionId='';TimeoutSeconds=0;Parameters=@{}}
+        $calls = @(Get-Content -LiteralPath $script:log)
+        @($calls | Where-Object { $_ -like 'pivot|*' }) | Should -Be @('pivot||11,12')
+        @($calls | Where-Object { $_ -eq 'poll' }).Count | Should -Be 1
+        $final = @{}; foreach ($e in @($events | Where-Object Kind -eq 'Device')) { $final[[string]$e.Value.ResourceID] = $e.Value.State }
+        $final['11'] | Should -Be 'Response received'
+        $final['12'] | Should -Be 'No response within timeout'
+        $final['13'] | Should -Be 'Not a client'
+        @($events | Where-Object Kind -eq 'Row').Count | Should -Be 1
+        @($events | Where-Object { $_.Kind -eq 'Raw' -and $_.Value.Phase -eq 'Submit' }).Count | Should -Be 1
+    }
+    It 'sends the collection ID and adds a member that was not in the snapshot' {
+        $env:PAS_TEST_EXTRA = '1'
+        $events = Invoke-Worker @{Module=$script:stub;SiteCode='MCM';Provider='p';Action='Run';Mode='Pivot';Text='OS';Targets=$script:targets;CollectionId='SMS00001';TimeoutSeconds=0;Parameters=@{}}
+        @(Get-Content -LiteralPath $script:log | Where-Object { $_ -like 'pivot|*' }) | Should -Be @('pivot|SMS00001|11,12')
+        $extra = @($events | Where-Object { $_.Kind -eq 'Device' -and $_.Value.ResourceID -eq 99 })
+        $extra[-1].Value.State | Should -Be 'Response received'
+        $extra[-1].Value.Detail | Should -BeLike '*part of the results*'
+    }
+    It 'submits one script operation and reports a failed device' {
+        $events = Invoke-Worker @{Module=$script:stub;SiteCode='MCM';Provider='p';Action='Run';Mode='Script';Text='x';ScriptGuid=[guid]::NewGuid().ToString();Targets=$script:targets;CollectionId='';TimeoutSeconds=0;Parameters=@{}}
+        @(Get-Content -LiteralPath $script:log | Where-Object { $_ -like 'script|*' }) | Should -Be @('script||11,12')
+        $final = @{}; foreach ($e in @($events | Where-Object Kind -eq 'Device')) { $final[[string]$e.Value.ResourceID] = $e.Value }
+        $final['11'].State | Should -Be 'Script failed'
+        $final['11'].ExitCode | Should -Be 1
+        $final['12'].State | Should -Be 'Response received'
+        (@($events | Where-Object Kind -eq 'Row'))[0].Value.Name | Should -Be 'Spooler'
+    }
+}
+
 Describe 'Window smoke test' {
     It 'starts the WPF window, switches themes and modes, and closes' {
         $output = & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\start-pivotsandscripts.ps1') -SmokeTest 2>&1

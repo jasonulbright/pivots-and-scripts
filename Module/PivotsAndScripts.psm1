@@ -37,7 +37,7 @@ function Test-PasCollectionId {
 function Resolve-PasTargets {
     param([ValidateSet('Collection','Device','Pattern','List')][string]$Kind,[string]$InputText)
     if ([string]::IsNullOrWhiteSpace($InputText)) { throw 'Enter a target.' }
-    $devices = @(); $unknown = @()
+    $devices = @(); $unknown = @(); $collectionId = ''
     if ($Kind -eq 'Collection') {
         $text = $InputText.Trim()
         $collections = @()
@@ -47,6 +47,7 @@ function Resolve-PasTargets {
             $collections = @(Get-CMDeviceCollection -Name ([Management.Automation.WildcardPattern]::Escape($text)) -ErrorAction Stop | Where-Object { $_.Name -eq $text })
         }
         if ($collections.Count -ne 1) { throw "Collection '$text' must resolve to exactly one device collection." }
+        $collectionId = [string]$collections[0].CollectionID
         $devices = @(Get-CMDevice -CollectionId $collections[0].CollectionID -Fast -ErrorAction Stop)
     } elseif ($Kind -eq 'Pattern') {
         $devices = @(Get-CMDevice -Name $InputText.Trim() -Fast -ErrorAction Stop)
@@ -61,7 +62,7 @@ function Resolve-PasTargets {
     $snapshot = @($devices | Where-Object { $_.ResourceID -gt 0 } | Sort-Object ResourceID -Unique | ForEach-Object {
         [pscustomobject]@{Device=[string]$_.Name; ResourceID=[int]$_.ResourceID; Client=[bool]$_.IsClient; Active=[bool]$_.IsActive}
     })
-    [pscustomobject]@{Targets=$snapshot; Unknown=$unknown; ResolvedAt=[DateTime]::UtcNow.ToString('o')}
+    [pscustomobject]@{Targets=$snapshot; Unknown=$unknown; CollectionID=$collectionId; ResolvedAt=[DateTime]::UtcNow.ToString('o')}
 }
 function Invoke-PasAdminService {
     param([string]$SMSProvider,[string]$RelativePath,[ValidateSet('GET','POST')][string]$Method='GET',$Body)
@@ -90,24 +91,6 @@ function Invoke-PasAdminService {
         $failure.Data['StatusCode'] = $code
         throw $failure
     }
-}
-function Start-PasPivot {
-    param([string]$SMSProvider,[int]$ResourceID,[string]$Query)
-    $raw = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath "Device($ResourceID)/AdminService.RunCMPivot" -Method POST -Body @{InputQuery=$Query}
-    $op = $null
-    if ($null -ne $raw -and $raw -isnot [string]) {
-        $op = $raw.PSObject.Properties['OperationId']
-        if (-not $op -and $raw.PSObject.Properties['value'] -and $null -ne $raw.value) { $op = $raw.value.PSObject.Properties['OperationId'] }
-    }
-    if (-not $op -or [string]$op.Value -notmatch '^\d+$') { throw 'AdminService did not return a numeric OperationId.' }
-    [pscustomobject]@{OperationID=[long]$op.Value; Raw=$raw}
-}
-function Get-PasPivotResult {
-    param([string]$SMSProvider,[int]$ResourceID,[long]$OperationID)
-    $raw = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath "Device($ResourceID)/AdminService.CMPivotResult(OperationId=$OperationID)"
-    # Windows PowerShell 5.1 returns an empty string for HTTP 204 and empty 200 bodies.
-    if ($null -eq $raw -or ($raw -is [string] -and [string]::IsNullOrWhiteSpace($raw))) { return $null }
-    $raw
 }
 function Test-PasEnvelope {
     param($Item)
@@ -271,29 +254,73 @@ function ConvertTo-PasScriptArguments {
     foreach ($p in @($SiteScript.Parameters)) { if ($p.Required -and -not $arguments.ContainsKey($p.Name) -and [string]::IsNullOrEmpty($p.Default)) { throw "Parameter '$($p.Name)' is required." } }
     $arguments
 }
-function Invoke-PasManagedScript {
-    param([guid]$ScriptGuid,[int]$ResourceID,[hashtable]$Arguments=@{})
-    # Configuration Manager remains responsible for approval and collection RBAC.
-    $device = Get-CMDevice -ResourceId $ResourceID -Fast -ErrorAction Stop
-    if (-not $device) { throw 'The target no longer exists.' }
-    $started = Invoke-CMScript -ScriptGuid $ScriptGuid.ToString() -Device $device -ScriptParameter $Arguments -PassThru -ErrorAction Stop
-    $op = $null
-    if ($null -ne $started) {
-        foreach ($name in @('OperationID','ClientOperationID','ID')) {
-            $property = $started.PSObject.Properties[$name]
-            if ($property -and [string]$property.Value -match '^\d+$') { $op = [long]$property.Value; break }
+
+function Start-PasPivotRun {
+    param([string]$SMSProvider,[string]$Query,[string]$CollectionId='',[int[]]$ResourceIds=@())
+    # One operation per run: the site fans the query out to the clients, as the console does.
+    $runs = @()
+    if ($CollectionId -and -not (Test-PasCollectionId $CollectionId)) { throw "'$CollectionId' is not a collection ID." }
+    if ($CollectionId) { $runs += ,@{Path="Collections('$CollectionId')/AdminService.RunCMPivot";Body=@{InputQuery=$Query}} }
+    else { $runs += ,@{Path='SMS_CMPivotStatus/AdminService.RunCMPivot';Body=@{InputQuery=$Query;ResourceIds=(@($ResourceIds) -join ',')}} }
+    foreach ($run in $runs) {
+        $raw = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath $run.Path -Method POST -Body $run.Body
+        $op = $null
+        if ($null -ne $raw -and $raw -isnot [string]) {
+            $op = $raw.PSObject.Properties['OperationId']
+            if (-not $op -and $raw.PSObject.Properties['value'] -and $null -ne $raw.value) { $op = $raw.value.PSObject.Properties['OperationId'] }
         }
+        if (-not $op -or [string]$op.Value -notmatch '^\d+$') { throw 'AdminService did not return a numeric OperationId.' }
+        [pscustomobject]@{OperationID=[long]$op.Value;Raw=[pscustomobject]@{OperationId=[long]$op.Value;Target=$(if ($CollectionId) { "Collection $CollectionId" } else { "$(@($run.Body.ResourceIds -split ',').Count) devices" })}}
     }
-    # The PassThru object is a WqlArrayItems wrapper that ConvertTo-Json cannot serialize.
-    [pscustomobject]@{OperationID=$op;ReturnValue=$(if ($null -ne $started -and $started.PSObject.Properties['ReturnValue']) { $started.ReturnValue } else { $null })}
 }
-function Get-PasScriptStatus {
-    param($CimSession,[string]$SiteCode,[long]$OperationID,[int]$ResourceID)
-    $rows = @(Get-CimInstance -CimSession $CimSession -Namespace ('root\SMS\site_'+$SiteCode) -ClassName SMS_ScriptsExecutionStatus -Filter ('ClientOperationId = {0} AND ResourceId = {1}' -f $OperationID,$ResourceID) -ErrorAction Stop)
-    if (-not $rows.Count) { return }
-    $row = $rows[0]
-    if (-not $row.PSObject.Properties['ScriptOutput']) { throw 'The provider returned an unsupported script-result schema. Inspect Raw.' }
-    [pscustomobject]@{ClientOperationId=$row.ClientOperationId;ResourceId=$row.ResourceId;DeviceName=$row.DeviceName;ScriptExecutionState=$row.ScriptExecutionState;ScriptExitCode=$row.ScriptExitCode;ScriptOutput=$row.ScriptOutput;ScriptGuid=$row.ScriptGuid;ScriptName=$row.ScriptName;LastUpdateTime=$row.LastUpdateTime}
+function Get-PasPivotStatus {
+    param([string]$SMSProvider,[long]$OperationID)
+    $path = 'SMS_CMPivotStatus?$filter=ClientOperationId%20eq%20' + $OperationID
+    while ($path) {
+        $page = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath $path
+        if ($null -eq $page -or $page -is [string]) { return }
+        foreach ($row in @($page.value)) { if ($null -ne $row) { $row } }
+        $path = $null
+        $next = $page.PSObject.Properties['@odata.nextLink']
+        if ($next -and $next.Value) { $path = ([string]$next.Value) -replace '^.*?/AdminService/v1\.0/', '' }
+    }
+}
+function ConvertFrom-PasPivotOutput {
+    param([string]$Output,[string]$Device,[int]$ResourceID)
+    # CMPivot status rows carry <result moreResults=".."><e _i="0" Column="value" .../></result>.
+    $more = $false
+    if ([string]::IsNullOrWhiteSpace($Output)) { return [pscustomobject]@{Rows=@();MoreResults=$false} }
+    $xml = [xml]$Output
+    if ($xml.DocumentElement -and [string]$xml.DocumentElement.GetAttribute('moreResults') -eq 'True') { $more = $true }
+    $rows = @(foreach ($element in @($xml.DocumentElement.ChildNodes | Where-Object { $_.NodeType -eq 'Element' })) {
+        $row = [ordered]@{TargetDevice=$Device;TargetResourceID=$ResourceID}
+        foreach ($attribute in $element.Attributes) { if ($attribute.Name -notin @('_i','TargetDevice','TargetResourceID')) { $row[$attribute.Name] = $attribute.Value } }
+        [pscustomobject]$row
+    })
+    [pscustomobject]@{Rows=$rows;MoreResults=$more}
+}
+function Start-PasScriptRun {
+    param([guid]$ScriptGuid,[hashtable]$Arguments=@{},[string]$CollectionId='',[int[]]$ResourceIds=@())
+    # Configuration Manager remains responsible for approval and collection RBAC.
+    if ($CollectionId) { $started = @(Invoke-CMScript -ScriptGuid $ScriptGuid.ToString() -CollectionId $CollectionId -ScriptParameter $Arguments -PassThru -ErrorAction Stop) }
+    else {
+        $devices = @(Invoke-CMWmiQuery -Query ('SELECT * FROM SMS_CombinedDeviceResources WHERE ResourceID IN ({0})' -f (@($ResourceIds) -join ',')) -Option Fast -ErrorAction Stop)
+        if (-not $devices.Count) { throw 'None of the targets exists in Configuration Manager any more.' }
+        $started = @(Invoke-CMScript -ScriptGuid $ScriptGuid.ToString() -Device $devices -ScriptParameter $Arguments -PassThru -ErrorAction Stop)
+    }
+    foreach ($item in $started) {
+        $op = $null
+        if ($null -ne $item) { foreach ($name in @('OperationID','ClientOperationID','ID')) { $property = $item.PSObject.Properties[$name]; if ($property -and [string]$property.Value -match '^\d+$') { $op = [long]$property.Value; break } } }
+        # The PassThru object is a WqlArrayItems wrapper that ConvertTo-Json cannot serialize.
+        [pscustomobject]@{OperationID=$op;ReturnValue=$(if ($null -ne $item -and $item.PSObject.Properties['ReturnValue']) { $item.ReturnValue } else { $null })}
+    }
+}
+function Get-PasScriptRunStatus {
+    param($CimSession,[string]$SiteCode,[long]$OperationID)
+    foreach ($row in @(Get-CimInstance -CimSession $CimSession -Namespace ('root\SMS\site_'+$SiteCode) -ClassName SMS_ScriptsExecutionStatus -Filter ('ClientOperationId = {0}' -f $OperationID) -ErrorAction Stop)) {
+        if (-not $row.PSObject.Properties['ScriptOutput']) { throw 'The provider returned an unsupported script-result schema. Inspect Raw.' }
+        [pscustomobject]@{ClientOperationId=$row.ClientOperationId;ResourceId=$row.ResourceId;DeviceName=$row.DeviceName;ScriptExecutionState=$row.ScriptExecutionState;ScriptExitCode=$row.ScriptExitCode;ScriptOutput=$row.ScriptOutput;ScriptGuid=$row.ScriptGuid;ScriptName=$row.ScriptName;LastUpdateTime=$row.LastUpdateTime}
+    }
 }
 function Get-PasApprovalStateName {
     param([int]$State)

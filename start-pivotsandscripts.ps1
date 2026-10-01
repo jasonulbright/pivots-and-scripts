@@ -3,7 +3,7 @@
     Main window of Pivots and Scripts, a Configuration Manager workbench for CMPivot queries and approved Run Scripts.
 
 .NOTES
-    Version    : 2026.10.01.0001
+    Version    : 2026.10.01.0002
     Requires   : Windows PowerShell 5.1, .NET Framework 4.8, Configuration Manager console
 #>
 param([string]$SiteCode='', [string]$SMSProvider='', [switch]$SmokeTest)
@@ -19,7 +19,7 @@ $prefsPath=Join-Path $dataRoot 'preferences.json'
 $script:session=[pscustomobject]@{SchemaVersion=1;ID=[guid]::NewGuid().ToString();Created=[DateTime]::UtcNow.ToString('o');Steps=@()}
 $script:rows=[Collections.Generic.List[object]]::new();$script:states=@{};$script:rawRecords=[Collections.Generic.List[object]]::new()
 $script:sort=$null;$script:columnOrder=@{}
-$script:targets=@();$script:resolvedConnection='';$script:mode='Pivot';$script:parameters=@{};$script:parameterKey='';$script:submitted=@{};$script:work=$null;$script:step=$null;$script:siteScripts=@();$script:scriptsGrid=$null
+$script:targets=@();$script:targetCollectionId='';$script:resolvedConnection='';$script:mode='Pivot';$script:parameters=@{};$script:parameterKey='';$script:submitted=@{};$script:work=$null;$script:step=$null;$script:siteScripts=@();$script:scriptsGrid=$null
 $script:drafts=@{Pivot='Disk | project Device, Name, FreeSpace';Script=''}
 $reader=[Xml.XmlNodeReader]::new([xml][IO.File]::ReadAllText((Join-Path $PSScriptRoot 'MainWindow.xaml')))
 $window=[Windows.Markup.XamlReader]::Load($reader)
@@ -105,6 +105,7 @@ function Save-PasSession {
     Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session
 }
 function Update-PasConnectionInfo { $ui.connectionInfo.Text=if($script:prefs.SiteCode -and $script:prefs.SMSProvider){'Site '+$script:prefs.SiteCode+' on '+$script:prefs.SMSProvider}else{'Connection not set. Open Options.'} }
+function Get-PasRunScope { param($Request) if($Request.CollectionId){"Configuration Manager receives one operation for collection $($Request.CollectionId)."}else{"Configuration Manager receives one operation for this device list."} }
 function Get-PasParameterKey { Get-PasHash $ui.editor.Text }
 function Get-PasStepState {
     if($script:work.Stopped){return 'Stopped waiting'}
@@ -115,7 +116,7 @@ function Get-PasStepState {
 function Start-PasWork {
     param([string]$Action,[hashtable]$Extra=@{})
     if($script:work){throw 'An operation is already running.'}
-    $request=@{Module=$module;SiteCode=$script:prefs.SiteCode;Provider=$script:prefs.SMSProvider;Action=$Action;Kind=[string]$ui.targetKind.SelectedItem.Content;InputText=$ui.targetInput.Text;Mode=$script:mode;Text=$ui.editor.Text;Targets=@($script:targets);ScriptGuid=$ui.scriptGuid.Text;Parameters=$script:parameters.Clone();TimeoutSeconds=300;AutoApprove=[bool]$script:prefs.ApproveAfterSubmit;Comment=''}
+    $request=@{Module=$module;SiteCode=$script:prefs.SiteCode;Provider=$script:prefs.SMSProvider;Action=$Action;Kind=[string]$ui.targetKind.SelectedItem.Content;InputText=$ui.targetInput.Text;Mode=$script:mode;Text=$ui.editor.Text;Targets=@($script:targets);ScriptGuid=$ui.scriptGuid.Text;Parameters=$script:parameters.Clone();TimeoutSeconds=300;CollectionId=$script:targetCollectionId;AutoApprove=[bool]$script:prefs.ApproveAfterSubmit;Comment=''}
     foreach($key in $Extra.Keys){$request[$key]=$Extra[$key]}
     if(-not $request.SiteCode -or -not $request.Provider){throw 'Set the site code and SMS Provider in Options > Connection.'}
     if($Action -eq 'Run'){
@@ -128,8 +129,8 @@ function Start-PasWork {
             if($script:submitted.ContainsKey($guid.ToString()) -and $script:submitted[$guid.ToString()] -ne (Get-PasHash $request.Text)){throw 'The draft changed after submission. Submit the edited script and obtain approval.'}
             if($request.Parameters.Count -and $script:parameterKey -ne (Get-PasParameterKey)){throw 'The parameters were set for different script text or another script GUID. Open Parameters again.'}
             $parameterText=if($request.Parameters.Count){($request.Parameters.Keys|Sort-Object|ForEach-Object{'  {0} = {1}' -f $_,$request.Parameters[$_]}) -join "`n"}else{'  (none; the script defaults apply)'}
-            $message="Run ConfigMgr script $($guid.ToString().ToUpperInvariant()) on $($request.Targets.Count) resolved devices?`n`nParameters:`n$parameterText`n`nConfigMgr executes the approved site script identified by this GUID. An unsubmitted editor draft is not executed."
-        } else {$message="Run this CMPivot query on $($request.Targets.Count) resolved devices?`n`n$($request.Text)"}
+            $message="Run ConfigMgr script $($guid.ToString().ToUpperInvariant()) on $($request.Targets.Count) resolved devices?`n$(Get-PasRunScope $request)`n`nParameters:`n$parameterText`n`nConfigMgr executes the approved site script identified by this GUID. An unsubmitted editor draft is not executed."
+        } else {$message="Run this CMPivot query on $($request.Targets.Count) resolved devices?`n$(Get-PasRunScope $request)`n`n$($request.Text)"}
         if(-not (Show-ConfirmDialog -Title 'Confirm target snapshot' -Message $message -Owner $window)){return}
         # Column order and sort apply to one query; another query has other columns.
         if(-not $script:step -or $script:step.Text -ne $request.Text){$script:columnOrder=@{};$script:sort=$null}
@@ -154,7 +155,7 @@ $timer.Add_Tick({
     $item=$null;$changed=$false
     while($script:work.Queue.TryDequeue([ref]$item)){
         switch($item.Kind){
-            'Targets' {$script:targets=@($item.Value.Targets);$script:resolvedConnection=$script:prefs.SiteCode+'|'+$script:prefs.SMSProvider;$ui.targetSummary.Text=('Matched: {0} | Active: {1} | Not clients: {2} | Unknown: {3}' -f $script:targets.Count,@($script:targets|Where-Object Active).Count,@($script:targets|Where-Object {-not $_.Client}).Count,@($item.Value.Unknown).Count);$ui.status.Text=if(@($item.Value.Unknown).Count){'Unmatched: '+($item.Value.Unknown -join ', ')}else{'Target snapshot ready.'};$script:states=New-PasDeviceTable $script:targets;$changed=$true}
+            'Targets' {$script:targets=@($item.Value.Targets);$script:targetCollectionId=[string]$item.Value.CollectionID;$script:resolvedConnection=$script:prefs.SiteCode+'|'+$script:prefs.SMSProvider;$ui.targetSummary.Text=('Matched: {0} | Active: {1} | Not clients: {2} | Unknown: {3}' -f $script:targets.Count,@($script:targets|Where-Object Active).Count,@($script:targets|Where-Object {-not $_.Client}).Count,@($item.Value.Unknown).Count);$ui.status.Text=if(@($item.Value.Unknown).Count){'Unmatched: '+($item.Value.Unknown -join ', ')}else{'Target snapshot ready.'};$script:states=New-PasDeviceTable $script:targets;$changed=$true}
             'Submitted' {$ui.scriptGuid.Text=$item.Value.Guid;$script:submitted[$item.Value.Guid]=$item.Value.Hash;$ui.status.Text=Get-PasSubmittedMessage -Guid $item.Value.Guid -Parameters $item.Value.Parameters -Approved ([bool]$item.Value.Approved) -ApprovalError ([string]$item.Value.ApprovalError)}
             'Scripts' {$script:siteScripts=@($item.Value);if($script:scriptsGrid){$script:scriptsGrid.ItemsSource=$script:siteScripts};$ui.status.Text=[string]$script:siteScripts.Count+' scripts on the site.'}
             'ScriptChanged' {$ui.status.Text='Script '+$item.Value.ScriptGuid+': '+$item.Value.State+'.'}
@@ -206,8 +207,8 @@ $ui.btnOpen.Add_Click({try{$path=Get-PasFilePath 'Queries and scripts|*.cmpivot;
 $ui.btnSave.Add_Click({try{$filter=if($script:mode -eq 'Script'){'PowerShell|*.ps1'}else{'CMPivot|*.cmpivot'};$path=Get-PasFilePath $filter -Save;if($path){[IO.File]::WriteAllText($path,$ui.editor.Text,[Text.UTF8Encoding]::new($true));Update-Library}}catch{Show-PasError $_}})
 $ui.btnConnect.Add_Click({try{Start-PasWork 'Connect'}catch{Show-PasError $_}})
 $ui.btnResolve.Add_Click({try{Start-PasWork 'Resolve'}catch{Show-PasError $_}})
-$ui.targetInput.Add_TextChanged({$script:targets=@();$ui.targetSummary.Text='Targets changed. Resolve again.'})
-$ui.targetKind.Add_SelectionChanged({$script:targets=@();$ui.targetSummary.Text='Target mode changed. Resolve again.'})
+$ui.targetInput.Add_TextChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Targets changed. Resolve again.'})
+$ui.targetKind.Add_SelectionChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Target mode changed. Resolve again.'})
 $ui.btnTargets.Add_Click({$ui.resultTabs.SelectedIndex=1})
 $ui.btnImport.Add_Click({try{$path=Get-PasFilePath 'Device lists|*.txt;*.csv';if($path){$text=if([IO.Path]::GetExtension($path) -eq '.csv'){$csv=@(Import-Csv -LiteralPath $path);if($csv.Count -and -not $csv[0].PSObject.Properties['Device']){throw 'CSV requires a Device column.'};($csv.Device -join "`r`n")}else{[IO.File]::ReadAllText($path)};$ui.targetKind.SelectedIndex=3;$ui.targetInput.Text=$text}}catch{Show-PasError $_}})
 $ui.btnRun.Add_Click({try{Start-PasWork 'Run'}catch{Show-PasError $_}})
@@ -238,7 +239,7 @@ $ui.results.Add_Sorting({param($sender,$e)
     $script:sort=@{Column=$e.Column.SortMemberPath;Descending=($e.Column.SortDirection -eq 'Ascending')}
     Refresh-PasResults
 })
-function Send-PasSelection {param([string]$Mode) if($script:work){throw 'Wait for the current operation to finish.'};$selected=@($ui.results.SelectedItems|Sort-Object TargetResourceID -Unique);if(-not $selected.Count){throw 'Select result rows first.'};if(-not $script:step -or ($script:step.SiteCode+'|'+$script:step.Provider) -ne ($script:prefs.SiteCode+'|'+$script:prefs.SMSProvider)){throw 'Results belong to another connection. Restore that connection before selecting targets.'};$script:targets=@($selected|ForEach-Object{[pscustomobject]@{Device=$_.TargetDevice;ResourceID=[int]$_.TargetResourceID;Client=$true;Active=$null}});$ui.targetSummary.Text=[string]$script:targets.Count+' devices selected from previous results.';$script:resolvedConnection=$script:prefs.SiteCode+'|'+$script:prefs.SMSProvider;Set-PasMode $Mode;$ui.editor.Text='';$script:parameters=@{};$ui.scriptGuid.Clear()}
+function Send-PasSelection {param([string]$Mode) if($script:work){throw 'Wait for the current operation to finish.'};$selected=@($ui.results.SelectedItems|Sort-Object TargetResourceID -Unique);if(-not $selected.Count){throw 'Select result rows first.'};if(-not $script:step -or ($script:step.SiteCode+'|'+$script:step.Provider) -ne ($script:prefs.SiteCode+'|'+$script:prefs.SMSProvider)){throw 'Results belong to another connection. Restore that connection before selecting targets.'};$script:targetCollectionId='';$script:targets=@($selected|ForEach-Object{[pscustomobject]@{Device=$_.TargetDevice;ResourceID=[int]$_.TargetResourceID;Client=$true;Active=$null}});$ui.targetSummary.Text=[string]$script:targets.Count+' devices selected from previous results.';$script:resolvedConnection=$script:prefs.SiteCode+'|'+$script:prefs.SMSProvider;Set-PasMode $Mode;$ui.editor.Text='';$script:parameters=@{};$ui.scriptGuid.Clear()}
 $ui.btnSelectionScript.Add_Click({try{Send-PasSelection 'Script'}catch{Show-PasError $_}})
 $ui.btnSelectionPivot.Add_Click({try{Send-PasSelection 'Pivot'}catch{Show-PasError $_}})
 $ui.btnCsv.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to export.'};$path=Get-PasFilePath 'CSV|*.csv' -Save;if($path){
@@ -253,7 +254,7 @@ $ui.btnCopy.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-
 $ui.btnGrid.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to show.'};$rows|Out-GridView -Title 'Pivots and Scripts results'}catch{Show-PasError $_}})
 $ui.btnSaveSession.Add_Click({try{Save-PasSession;$path=Get-PasFilePath 'Session JSON|*.json' -Save;if($path){Write-PasJson $path $script:session}}catch{Show-PasError $_}})
 $ui.btnNewSession.Add_Click({try{Save-PasSession;$script:session=[pscustomobject]@{SchemaVersion=1;ID=[guid]::NewGuid().ToString();Created=[DateTime]::UtcNow.ToString('o');Steps=@()};$script:step=$null;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();$ui.raw.Clear();Refresh-PasResults}catch{Show-PasError $_}})
-$ui.btnHistory.Add_Click({try{$path=Get-PasFilePath 'Session JSON|*.json';if($path){$loaded=[IO.File]::ReadAllText($path)|ConvertFrom-Json;if($loaded.SchemaVersion -ne 1 -or [string]$loaded.ID -notmatch '^[a-fA-F0-9-]{36}$'){throw 'Unsupported session file.'};$script:session=$loaded;$script:step=@($loaded.Steps)|Select-Object -Last 1;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();if($script:step){foreach($row in @($script:step.Results)){$script:rows.Add($row)};foreach($item in @($script:step.Devices)){$script:states[[string]$item.ResourceID]=$item};Set-PasMode $script:step.Mode;$ui.editor.Text=$script:step.Text;$ui.raw.Text=$script:step.Raw|ConvertTo-Json -Depth 20};$script:targets=@();$ui.targetSummary.Text='Historical session opened. Resolve fresh targets before running.';Refresh-PasResults}}catch{Show-PasError $_}})
+$ui.btnHistory.Add_Click({try{$path=Get-PasFilePath 'Session JSON|*.json';if($path){$loaded=[IO.File]::ReadAllText($path)|ConvertFrom-Json;if($loaded.SchemaVersion -ne 1 -or [string]$loaded.ID -notmatch '^[a-fA-F0-9-]{36}$'){throw 'Unsupported session file.'};$script:session=$loaded;$script:step=@($loaded.Steps)|Select-Object -Last 1;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();if($script:step){foreach($row in @($script:step.Results)){$script:rows.Add($row)};foreach($item in @($script:step.Devices)){$script:states[[string]$item.ResourceID]=$item};Set-PasMode $script:step.Mode;$ui.editor.Text=$script:step.Text;$ui.raw.Text=$script:step.Raw|ConvertTo-Json -Depth 20};$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Historical session opened. Resolve fresh targets before running.';Refresh-PasResults}}catch{Show-PasError $_}})
 $ui.toggleTheme.Add_Toggled({$dark=$ui.toggleTheme.IsOn;[void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($window,$(if($dark){'Dark.Steel'}else{'Light.Blue'}));$ui.txtThemeLabel.Text=if($dark){'Dark Theme'}else{'Light Theme'};Set-ButtonTheme -IsDark $dark;Update-SidebarButtonTheme;Update-TitleBarBrushes;Set-PasHighlighting})
 $window.Add_SourceInitialized({Set-ButtonTheme -IsDark $ui.toggleTheme.IsOn;Update-SidebarButtonTheme;Update-TitleBarBrushes})
 $window.Add_Closing({param($sender,$e) if($script:work){$e.Cancel=$true;$script:work.Control.Stop=$true;$script:work.Stopped=$true;$ui.status.Text='Stopping local waiting. Close again after the worker finishes.';return};try{Save-PasSession;Save-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')}catch{if($SmokeTest){[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'work\smoke.log'),$_.ToString())}else{$e.Cancel=$true;Show-PasError $_}}})
