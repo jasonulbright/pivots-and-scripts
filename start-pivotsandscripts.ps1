@@ -1,9 +1,9 @@
-﻿<#
+<#
 .SYNOPSIS
     Main window of Pivots and Scripts, a Configuration Manager workbench for CMPivot queries and approved Run Scripts.
 
 .NOTES
-    Version    : 2026.10.01.0002
+    Version    : 2026.10.11.0003
     Requires   : Windows PowerShell 5.1, .NET Framework 4.8, Configuration Manager console
 #>
 param([string]$SiteCode='', [string]$SMSProvider='', [switch]$SmokeTest)
@@ -261,5 +261,7 @@ $window.Add_Closing({param($sender,$e) if($script:work){$e.Cancel=$true;$script:
 Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')
 Update-PasConnectionInfo;Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
 if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;if($ui.connectionInfo.Text -notmatch 'Connection not set|Site '){throw 'Connection label missing.'};Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
+# Suite update notice: one shared daily lookup across the suite tools; the launcher installs.
+$null = Start-SuiteUpdateNotice -Path $PSScriptRoot -OnResult { param($u) if ($u.Available) { $ui.status.Text = ('Suite update available: v{0}. Update from the AppPackager Suite Launcher.' -f $u.Latest) } }
 try{$window.ShowDialog()|Out-Null}finally{$timer.Stop()}
 if($SmokeTest){$log=[IO.File]::ReadAllText($smokeLog);if(($log -replace 'tick|close|\s','').Length){throw $log};Write-Output 'PASS: WPF startup, dark/light themes, mode switches, editor, window close and session persistence.'}
