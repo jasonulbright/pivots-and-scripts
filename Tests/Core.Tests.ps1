@@ -258,7 +258,8 @@ Describe 'Sort-PasRows' {
     It 'sorts Int32 and Int64 values from ConvertFrom-Json as numbers' {
         $rows = ConvertFrom-Json '[{"Device":"A","FreeSpace":5000000000},{"Device":"B","FreeSpace":7},{"Device":"C","FreeSpace":300}]'
         $rows[0].FreeSpace | Should -BeOfType [long]
-        $rows[1].FreeSpace | Should -BeOfType [int]
+        # Windows PowerShell reads 7 as Int32; PowerShell 7 reads every integer as Int64.
+        ($rows[1].FreeSpace -is [int] -or $rows[1].FreeSpace -is [long]) | Should -BeTrue
         (@(Sort-PasRows -Rows $rows -Property FreeSpace) | ForEach-Object Device) -join ',' | Should -Be 'B,C,A'
         (@(Sort-PasRows -Rows $rows -Property FreeSpace -Descending) | ForEach-Object Device) -join ',' | Should -Be 'A,C,B'
     }
