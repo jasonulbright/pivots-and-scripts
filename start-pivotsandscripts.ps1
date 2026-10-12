@@ -3,7 +3,7 @@
     Main window of Pivots and Scripts, a Configuration Manager workbench for CMPivot queries and approved Run Scripts.
 
 .NOTES
-    Version    : 2026.10.11.0004
+    Version    : 2026.10.12.0005
     Requires   : Windows PowerShell 5.1, .NET Framework 4.8, Configuration Manager console
 #>
 param([string]$SiteCode='', [string]$SMSProvider='', [switch]$SmokeTest)
