@@ -90,6 +90,9 @@ Section 'run cmpivot' {
     Open-Library 'Operating system.cmpivot'
     Invoke-El (Get-El $win 'btnRun'); Answer 'confirm-run-cmpivot' 'btnNo'
     Log ('status after No: ' + (Status)); Shot $win 'run-cancelled'
+    # Send the query only to the one resolved device. Stop when the snapshot is anything else.
+    $summary = Get-ElText (Get-El $win 'targetSummary')
+    if ($summary -notmatch '^Matched: 1 \|') { throw ('The target snapshot is not one device: ' + $summary) }
     Invoke-El (Get-El $win 'btnRun'); Answer 'confirm-run-cmpivot-yes' 'btnYes'
     Start-Sleep -Seconds 2; Shot $win 'run-working'
     Idle 240; Log ('status after run: ' + (Status)); Tab 'Results'; Shot $win 'results'

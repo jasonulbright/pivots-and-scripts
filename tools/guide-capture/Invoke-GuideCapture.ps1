@@ -113,8 +113,21 @@ try {
     if ($duplicate.Count) { throw ("Two runs produced the same image. No image was replaced.`n" + ($duplicate -join "`n")) }
     $missing = @(Get-ChildItem $images -Filter *.png | Where-Object { -not $capturedNames.Contains($_.Name) } | ForEach-Object { $_.Name })
     if ($missing.Count) { throw ("The capture did not produce these guide images. No image was replaced.`n" + ($missing -join "`n")) }
-    foreach ($png in $captured) {
-        if ($AddNew -or (Test-Path (Join-Path $images $png.Name))) { Copy-Item $png.FullName (Join-Path $images $png.Name) -Force }
+    # Keep the old images until every replacement worked. A failure restores them and removes the new ones.
+    $backup = Join-Path $tmp 'image-backup'; New-Item -ItemType Directory $backup | Out-Null
+    $created = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($png in $captured) {
+            $target = Join-Path $images $png.Name
+            if (Test-Path $target) { Copy-Item $target (Join-Path $backup $png.Name) -Force; Copy-Item $png.FullName $target -Force }
+            elseif ($AddNew) { Copy-Item $png.FullName $target -Force; $created.Add($target) }
+        }
+    }
+    catch {
+        $reason = $_.Exception.Message
+        foreach ($old in Get-ChildItem $backup -Filter *.png) { Copy-Item $old.FullName (Join-Path $images $old.Name) -Force }
+        foreach ($new in $created) { Remove-Item $new -Force -ErrorAction SilentlyContinue }
+        throw ('An image could not be replaced. The old images are back. ' + $reason)
     }
     $ok = $true
 }
