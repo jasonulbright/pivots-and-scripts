@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Runs the linter, the tests and the code coverage of Pivots and Scripts, and
-    fails below the coverage floor.
+    fails below the coverage floor when the window tests run.
 
 .DESCRIPTION
     One command for developers and for CI:
@@ -10,12 +10,13 @@
          severity Error or Warning fails the run.
       2. Pester on Module\ and Tests\, with code coverage of the module files.
          A failed test fails the run. A run that finds no test fails too.
-      3. The coverage of the module files must reach -CoverageFloor percent.
+      3. When the window tests run, the coverage of the module files must reach -CoverageFloor
+         percent. Otherwise the coverage is informational.
     The summary lists the test count as run (each data row counts as one test)
     and the coverage. Lab tests live in Tests\Lab and never run here.
 
 .PARAMETER CoverageFloor
-    Minimum percent of module commands that the tests run. Default 80.
+    Minimum percent of module commands that the tests run. It applies only when the window tests run; otherwise the coverage is informational. Default 80.
 
 .PARAMETER SkipWindow
     Leave out the window tests (Tests\Window.Tests.ps1 and Tests\Shell.Smoke.Tests.ps1), which open

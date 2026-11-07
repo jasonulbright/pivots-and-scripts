@@ -71,6 +71,16 @@ Describe 'Window test files carry the guard' {
         (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Window.Tests.ps1') -Raw) | Should -Match '-not \$env:SUITE_WINDOW_GUARD_REPORTED'
     }
 
+    It 'Window.Tests.ps1 sets placeholder AppConfig data (Views, DialogFiles) in the denied branch, before it returns' {
+        $text = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Window.Tests.ps1') -Raw
+        $text -match '(?s)if \(-not \$script:WindowGuard\.Allowed\) \{(?<denied>.*?)\r?\n\s*return\b' | Should -BeTrue
+        $denied = $Matches['denied']
+        $denied | Should -Match '\$script:AppConfig\s*='
+        $denied | Should -Match 'Views\s*='
+        $denied | Should -Match 'DialogFiles\s*='
+        $denied | Should -Not -Match 'WindowConfig'
+    }
+
     It '<Name> calls Test-WindowTestsAllowed and applies -Skip' -ForEach $script:WindowTestFiles {
         $text = Get-Content -LiteralPath $Path -Raw
         $text | Should -Match 'Test-WindowTestsAllowed'

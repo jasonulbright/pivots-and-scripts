@@ -17,6 +17,17 @@ BeforeDiscovery {
         $script:ViewCases = @(@{ View = 'skipped' })
         $script:NameCases = @(@{ Name = 'skipped' })
         $script:DialogCases = @(@{ File = 'skipped'; Index = 0; Key = 'skipped' })
+        # Describe blocks read $script:AppConfig during discovery (-ForEach lists). Pester 6 fails a null or empty list,
+        # so a placeholder with the same shape as the real application configuration stands in. The values are not used: every Describe is skipped.
+        $script:AppConfig = @{
+            Title          = 'skipped'
+            Shell          = 'skipped'
+            Xaml           = 'skipped'
+            OptionsButtons = @('skipped')
+            ModeFunctions  = @('skipped')
+            DialogFiles    = @('skipped')
+            Views          = @(@{ Name = 'skipped'; Mode = 'skipped'; Button = 'skipped'; Heading = 'skipped' })
+        }
         return
     }
     . "$PSScriptRoot\WindowConfig.ps1"
