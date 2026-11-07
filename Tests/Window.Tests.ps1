@@ -6,9 +6,19 @@
 # start script to switch them.
 
 BeforeDiscovery {
+    # The guard decides before any runspace or window exists. A skipped run says why, once.
     . "$PSScriptRoot\WindowHarness.ps1"
     $script:WindowGuard = Test-WindowTestsAllowed
-    if (-not $script:WindowGuard.Allowed) { Write-Host ("Window tests skipped: {0}" -f $script:WindowGuard.Reason) }
+    if (-not $script:WindowGuard.Allowed -and -not $env:SUITE_WINDOW_GUARD_REPORTED) { Write-Host ("Window tests skipped: {0}." -f $script:WindowGuard.Reason) }
+    if (-not $script:WindowGuard.Allowed) {
+        # Denied: evaluate nothing derived from the shell script. One placeholder case per list keeps the
+        # skipped Describe blocks visible as Skipped, and an empty case list never reaches Pester.
+        $script:Matrix = @(@{ Dark = $true; Theme = 'skipped'; W = 0; H = 0; Size = 'skipped' })
+        $script:ViewCases = @(@{ View = 'skipped' })
+        $script:NameCases = @(@{ Name = 'skipped' })
+        $script:DialogCases = @(@{ File = 'skipped'; Index = 0; Key = 'skipped' })
+        return
+    }
     . "$PSScriptRoot\WindowConfig.ps1"
     $script:Matrix = foreach ($dark in $true, $false) {
         foreach ($size in @(@(1024, 720), @(1440, 900))) {
@@ -174,6 +184,25 @@ Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
     }
 }
 
+Describe 'Result tab headers' -Skip:(-not $script:WindowGuard.Allowed) {
+    It 'gives each of the four result tabs a header with the TabHeaderText style' {
+        $xaml = Get-Content -LiteralPath $script:XamlPath -Raw -Encoding UTF8
+        $names = @([regex]::Matches($xaml, '<TabItem><TabItem\.Header><TextBlock Text="([^"]+)" Style="\{StaticResource TabHeaderText\}"') | ForEach-Object { $_.Groups[1].Value })
+        $names | Should -Be @('Results', 'Devices', 'Raw', 'Pipeline')
+        $xaml | Should -Not -Match '<TabItem Header='
+    }
+
+    It 'sets size 13 on the header style and makes only the selected header bold' {
+        $xaml = Get-Content -LiteralPath $script:XamlPath -Raw -Encoding UTF8
+        $style = [regex]::Match($xaml, '<Style x:Key="TabHeaderText".*?</Style>').Value
+        $style | Should -Match '<Setter Property="FontSize" Value="13"/>'
+        # The only bold setter is inside the trigger on the selected state of the owning tab.
+        ([regex]::Matches($style, 'FontWeight')).Count | Should -Be 1
+        $style | Should -Match '<DataTrigger Binding="\{Binding IsSelected, RelativeSource=\{RelativeSource AncestorType=TabItem\}\}" Value="True"><Setter Property="FontWeight" Value="Bold"/></DataTrigger>'
+        $xaml | Should -Match 'x:Name="resultTabs" Controls:HeaderedControlHelper\.HeaderFontSize="13"'
+    }
+}
+
 Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'finds the dialog XAML in the dialog files' {
         $script:DialogXaml.Count | Should -Be 3
@@ -208,6 +237,15 @@ Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
         foreach ($t in $titles) { $t.Trim() | Should -Not -BeNullOrEmpty }
     }
 
+    It 'gives each message box a title that differs from the title of the dialog that owns it' {
+        # The owner dialog and its message box must not carry the same title, or the user sees two windows with one name.
+        foreach ($f in $script:AppConfig.DialogFiles) {
+            $text = Get-Content -LiteralPath (Join-Path $script:Root $f) -Raw -Encoding UTF8
+            $dialogTitles = @($script:DialogXaml.Keys | Where-Object { $_ -like "$f#*" } | ForEach-Object { if ($script:DialogXaml[$_] -match '\sTitle="([^"]*)"') { $Matches[1] } })
+            $messageTitles = @([regex]::Matches($text, "Show-(?:Themed|Confirm)\w*\s[^\r\n]*?-Title\s+'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+            foreach ($m in $messageTitles) { $dialogTitles | Should -Not -Contain $m -Because "$f shows a message titled '$m' above a dialog with the same title" }
+        }
+    }
     It 'gives the dialogs in XAML different titles' {
         $titles = @($script:DialogXaml.Values | ForEach-Object { if ($_ -match '\sTitle="([^"]*)"') { $Matches[1] } } | Where-Object { $_ })
         ($titles | Select-Object -Unique).Count | Should -Be $titles.Count
