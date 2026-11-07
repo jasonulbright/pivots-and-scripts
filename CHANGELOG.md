@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026.11.07.0008] - 2026-11-07
+
+## 1 shared library refresh and window tests that cannot steal focus
+
+### Added
+
+- Skip the window tests on the development PC and without the opt-in. The console shows the reason.
+- Add tests that check the guard and that every window test carries it.
+- Print one line when Invoke-Checks skips the window tests.
+
+### Changed
+
+- Update the shared library to version 2026.11.07.0075.
+- Check the coverage floor only when the window tests run.
+
 ## [2026.11.07.0007] - 2026-11-07
 
 ## 2 fixes and a user guide with 58 images
@@ -13,6 +28,7 @@
 
 - Add the user guide (docs/index.md) with images of the running window.
 - Add tools/guide-capture, one command that regenerates every image of the guide on a lab computer.
+
 ## [2026.11.06.0006] - 2026-11-06
 
 ## 19 defects fixed
