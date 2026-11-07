@@ -9,10 +9,10 @@ try {
     if ($Request.Action -eq 'Connect') { Send-Event 'Notice' "Connected to site $($Request.SiteCode)."; return }
     if ($Request.Action -eq 'Resolve') { Send-Event 'Targets' (Resolve-PasTargets -Kind $Request.Kind -InputText $Request.InputText); return }
     if ($Request.Action -eq 'Submit') {
-        $script = New-PasManagedScript -Text $Request.Text -SMSProvider $Request.Provider -SiteCode $Request.SiteCode
+        $script = New-PasManagedScript -Text $Request.Text -SMSProvider $Request.Provider -SiteCode $Request.SiteCode -Confirm:$false
         $approval = ''; $approved = $false
         if ($Request.AutoApprove) {
-            try { $null = Set-PasScriptApproval -ScriptGuid $script.ScriptGuid -Decision Approve -Comment 'Approved at submission by Pivots and Scripts.'; $approved = $true }
+            try { $null = Set-PasScriptApproval -ScriptGuid $script.ScriptGuid -Decision Approve -Comment 'Approved at submission by Pivots and Scripts.' -Confirm:$false; $approved = $true }
             catch { $approval = $_.Exception.Message }
         }
         Send-Event 'Submitted' ([pscustomobject]@{Guid=[string]$script.ScriptGuid;Hash=(Get-PasHash $Request.Text);Parameters=@($script.Parameters);Approved=$approved;ApprovalError=$approval})
@@ -20,8 +20,8 @@ try {
     }
     if ($Request.Action -eq 'Scripts') { Send-Event 'Scripts' @(Get-PasSiteScripts -SMSProvider $Request.Provider -SiteCode $Request.SiteCode); return }
     # The list event sets the status line too; the decision is sent last so the status names it.
-    if ($Request.Action -in @('Approve','Deny')) { $result = Set-PasScriptApproval -ScriptGuid $Request.ScriptGuid -Decision $Request.Action -Comment $Request.Comment; Send-Event 'Scripts' @(Get-PasSiteScripts -SMSProvider $Request.Provider -SiteCode $Request.SiteCode); Send-Event 'ScriptChanged' $result; return }
-    if ($Request.Action -eq 'Remove') { $result = Remove-PasManagedScript -ScriptGuid $Request.ScriptGuid; Send-Event 'Scripts' @(Get-PasSiteScripts -SMSProvider $Request.Provider -SiteCode $Request.SiteCode); Send-Event 'ScriptChanged' $result; return }
+    if ($Request.Action -in @('Approve','Deny')) { $result = Set-PasScriptApproval -ScriptGuid $Request.ScriptGuid -Decision $Request.Action -Comment $Request.Comment -Confirm:$false; Send-Event 'Scripts' @(Get-PasSiteScripts -SMSProvider $Request.Provider -SiteCode $Request.SiteCode); Send-Event 'ScriptChanged' $result; return }
+    if ($Request.Action -eq 'Remove') { $result = Remove-PasManagedScript -ScriptGuid $Request.ScriptGuid -Confirm:$false; Send-Event 'Scripts' @(Get-PasSiteScripts -SMSProvider $Request.Provider -SiteCode $Request.SiteCode); Send-Event 'ScriptChanged' $result; return }
     $arguments=@{}
     if ($Request.Mode -eq 'Script') {
         $site = Get-PasSiteScript -SMSProvider $Request.Provider -SiteCode $Request.SiteCode -ScriptGuid $Request.ScriptGuid
@@ -43,11 +43,12 @@ try {
     $ids = @($jobs.Values | ForEach-Object { $_.ResourceID } | Sort-Object)
     $collectionId = [string]$Request.CollectionId
     try {
-        if ($Request.Mode -eq 'Pivot') { $operations = @(Start-PasPivotRun -SMSProvider $Request.Provider -Query $Request.Text -CollectionId $collectionId -ResourceIds $ids) }
-        else { $operations = @(Start-PasScriptRun -ScriptGuid $Request.ScriptGuid -Arguments $arguments -CollectionId $collectionId -ResourceIds $ids) }
+        if ($Request.Mode -eq 'Pivot') { $operations = @(Start-PasPivotRun -SMSProvider $Request.Provider -Query $Request.Text -CollectionId $collectionId -ResourceIds $ids -Confirm:$false) }
+        else { $operations = @(Start-PasScriptRun -ScriptGuid $Request.ScriptGuid -Arguments $arguments -CollectionId $collectionId -ResourceIds $ids -Confirm:$false) }
     } catch { foreach ($job in $jobs.Values) { Send-Device $job 'Submission error' $_.Exception.Message }; return }
     foreach ($operation in $operations) { Send-Event 'Raw' ([pscustomobject]@{Device='';Phase='Submit';Response=$(if ($operation.PSObject.Properties['Raw']) { $operation.Raw } else { $operation })}) }
-    if (@($operations | Where-Object { $null -eq $_.OperationID }).Count) {
+    # A run that returns nothing has no operation ID either; polling operation 0 would wait for a result that never comes.
+    if (-not $operations.Count -or @($operations | Where-Object { $null -eq $_.OperationID }).Count) {
         foreach ($job in $jobs.Values) { Send-Device $job 'Submitted, no operation ID' 'The site accepted the run but returned no operation ID. Check Monitoring > Script Status before running again.' }
         return
     }
@@ -73,18 +74,22 @@ try {
                 Send-Event 'Raw' ([pscustomobject]@{Device=$job.Device;Phase='Result';Response=$status})
                 $job.ExitCode = $status.ScriptExitCode
                 $errorText = if ($status.PSObject.Properties['ErrorMessage']) { [string]$status.ErrorMessage } else { '' }
-                $failed = [int64]$status.ScriptExitCode -ne 0 -or [int]$status.ScriptExecutionState -eq 2 -or -not [string]::IsNullOrWhiteSpace($errorText)
-                $detail = ''
-                if ($Request.Mode -eq 'Pivot') {
-                    $parsed = ConvertFrom-PasPivotOutput -Output ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID
-                    $rows = @($parsed.Rows)
-                    if ($parsed.MoreResults) { $detail = 'The site returned part of the results for this device.' }
-                    $state = if ($failed) { 'Query failed' } else { 'Response received' }
-                } else {
-                    $rows = @(Convert-PasRows -Payload ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID)
-                    $state = if ($failed) { 'Script failed' } else { 'Response received' }
-                }
-                if ($failed) { $detail = (@("Exit code $($status.ScriptExitCode), execution state $($status.ScriptExecutionState).", $errorText) | Where-Object { $_ }) -join ' ' }
+                $failedByStatus = [int64]$status.ScriptExitCode -ne 0 -or [int]$status.ScriptExecutionState -eq 2 -or -not [string]::IsNullOrWhiteSpace($errorText)
+                $failed = $failedByStatus
+                $detail = ''; $unreadable = ''; $rows = @()
+                # One device that returns output the app cannot read must not stop the other devices.
+                try {
+                    if ($Request.Mode -eq 'Pivot') {
+                        $parsed = ConvertFrom-PasPivotOutput -Output ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID
+                        $rows = @($parsed.Rows)
+                        if ($parsed.MoreResults) { $detail = 'The site returned part of the results for this device.' }
+                    } else {
+                        $rows = @(Convert-PasRows -Payload ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID)
+                    }
+                } catch { $rows = @(); $failed = $true; $unreadable = 'The result could not be read: ' + $_.Exception.Message }
+                $state = if ($Request.Mode -eq 'Pivot') { if ($failed) { 'Query failed' } else { 'Response received' } } else { if ($failed) { 'Script failed' } else { 'Response received' } }
+                if ($failedByStatus) { $detail = (@("Exit code $($status.ScriptExitCode), execution state $($status.ScriptExecutionState).", $errorText) | Where-Object { $_ }) -join ' ' }
+                if ($unreadable) { $detail = (@($detail, $unreadable) | Where-Object { $_ }) -join ' ' }
                 foreach ($row in $rows) { Send-Event 'Row' $row }
                 $job.Finished = $true
                 Send-Device $job $state $detail

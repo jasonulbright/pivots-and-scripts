@@ -3,6 +3,7 @@ $versionLine = Select-String -LiteralPath (Join-Path (Split-Path $PSScriptRoot) 
 if ($versionLine) { $script:appVersion = $versionLine.Matches[0].Groups[1].Value }
 
 function New-PasOptionsText {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Builds a TextBlock in memory only.')]
     param([string]$Text,[double]$Size=12,[string]$Weight='Normal',[string]$Margin='0,0,0,8',[switch]$Muted)
     $block = [Windows.Controls.TextBlock]::new()
     $block.Text = $Text; $block.FontSize = $Size; $block.FontWeight = $Weight; $block.Margin = $Margin; $block.TextWrapping = 'Wrap'

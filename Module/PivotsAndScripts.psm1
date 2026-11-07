@@ -1,6 +1,21 @@
 Set-StrictMode -Version 2
 Import-Module (Join-Path $PSScriptRoot '..\Lib\SuiteCommon\SuiteCommon.psd1') -DisableNameChecking
 
+function Read-PasXml {
+    param([string]$Text)
+    # Text from endpoints and from the site is parsed with DTD processing off: a document type could expand
+    # entities without limit or read a file.
+    $settings = [Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $stringReader = [IO.StringReader]::new($Text)
+    try {
+        $reader = [Xml.XmlReader]::Create($stringReader, $settings)
+        try { $document = [Xml.XmlDocument]::new(); $document.XmlResolver = $null; $document.Load($reader); $document }
+        finally { $reader.Dispose() }
+    }
+    finally { $stringReader.Dispose() }
+}
 function Get-PasHash {
     param([string]$Text)
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -8,12 +23,16 @@ function Get-PasHash {
     finally { $sha.Dispose() }
 }
 function Write-PasJson {
+    [CmdletBinding(SupportsShouldProcess)]
     param([string]$Path, $Value)
+    if (-not $PSCmdlet.ShouldProcess($Path, 'Write JSON file')) { return }
     $directory = Split-Path $Path -Parent
     [IO.Directory]::CreateDirectory($directory) | Out-Null
     $temp = $Path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
     try {
-        [IO.File]::WriteAllText($temp, (ConvertTo-Json -InputObject $Value -Depth 40), [Text.UTF8Encoding]::new($false))
+        # Windows PowerShell 5.1 returns nothing for a null value; the file then holds invalid JSON.
+        $json = if ($null -eq $Value) { 'null' } else { ConvertTo-Json -InputObject $Value -Depth 40 }
+        [IO.File]::WriteAllText($temp, $json, [Text.UTF8Encoding]::new($false))
         if ([IO.File]::Exists($Path)) {
             $backup=$temp+'.bak'
             [IO.File]::Replace($temp,$Path,$backup)
@@ -24,15 +43,22 @@ function Write-PasJson {
 }
 function Assert-PasConnection {
     param([string]$SiteCode,[string]$SMSProvider)
-    if ($SiteCode -notmatch '^[A-Za-z0-9]{3}$') { throw 'Enter a three-character site code.' }
-    if ($SMSProvider -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$') { throw 'Enter the SMS Provider hostname, without a URL or path.' }
+    # \z, not $: in .NET, $ also matches before a final line break.
+    if ($SiteCode -notmatch '^[A-Za-z0-9]{3}\z') { throw 'Enter a three-character site code.' }
+    if ($SMSProvider -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*\z') { throw 'Enter the SMS Provider hostname, without a URL or path.' }
     if (-not (Connect-CMSite -SiteCode $SiteCode -SMSProvider $SMSProvider)) { throw 'Configuration Manager connection failed. Check console installation, site and permissions.' }
     # Connect-CMSite returns success for a site code the provider does not host.
-    if (@(Get-CMSite -SiteCode $SiteCode -ErrorAction SilentlyContinue).Count -ne 1) { throw "Site $SiteCode was not found on SMS Provider $SMSProvider." }
+    $lookupError = $null
+    $sites = @(Get-CMSite -SiteCode $SiteCode -ErrorAction SilentlyContinue -ErrorVariable lookupError)
+    if ($lookupError) {
+        $reason = @($lookupError)[0].ToString()
+        throw "Site $SiteCode could not be checked on SMS Provider ${SMSProvider}: $reason"
+    }
+    if ($sites.Count -ne 1) { throw "Site $SiteCode was not found on SMS Provider $SMSProvider." }
 }
 function Test-PasCollectionId {
     param([string]$Text)
-    $Text -match '^[A-Za-z0-9]{3}[0-9A-Fa-f]{5}$'
+    $Text -match '^[A-Za-z0-9]{3}[0-9A-Fa-f]{5}\z'
 }
 function Resolve-PasTargets {
     param([ValidateSet('Collection','Device','Pattern','List')][string]$Kind,[string]$InputText)
@@ -166,9 +192,11 @@ function Assert-PasScriptParameters {
 function ConvertTo-PasParamsDefinition {
     param([object[]]$Parameters)
     $builder = [Text.StringBuilder]::new('<?xml version="1.0" encoding="utf-16"?><ScriptParameters SchemaVersion="1">')
+    # An XML parser turns a raw line break or tab inside an attribute value into a space; character references keep them.
+    $escapeAttribute = { param([string]$Value) ([Security.SecurityElement]::Escape($Value)).Replace("`r", '&#13;').Replace("`n", '&#10;').Replace("`t", '&#9;') }
     foreach ($p in @($Parameters | Where-Object { $null -ne $_ })) {
-        $name = [Security.SecurityElement]::Escape($p.Name)
-        [void]$builder.Append(('<ScriptParameter Name="{0}" FriendlyName="{0}" Type="{1}" Description="" IsRequired="{2}" IsHidden="false" DefaultValue="{3}"><Validators /></ScriptParameter>' -f $name, $p.SiteType, ([string][bool]$p.Mandatory).ToLowerInvariant(), [Security.SecurityElement]::Escape($p.DefaultLiteral)))
+        $name = & $escapeAttribute $p.Name
+        [void]$builder.Append(('<ScriptParameter Name="{0}" FriendlyName="{0}" Type="{1}" Description="" IsRequired="{2}" IsHidden="false" DefaultValue="{3}"><Validators /></ScriptParameter>' -f $name, $p.SiteType, ([string][bool]$p.Mandatory).ToLowerInvariant(), (& $escapeAttribute $p.DefaultLiteral)))
     }
     [void]$builder.Append('</ScriptParameters>')
     $builder.ToString()
@@ -178,10 +206,11 @@ function ConvertFrom-PasParamsDefinition {
     if ([string]::IsNullOrWhiteSpace($Encoded)) { return }
     $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Encoded)).TrimStart([char]0xFEFF)
     $text = $text -replace '^<\?xml[^>]*\?>', ''
-    $xml = [xml]$text
-    foreach ($node in @($xml.ScriptParameters.ScriptParameter)) { if ($node) { [pscustomobject]@{Name=[string]$node.Name;Type=[string]$node.Type;Required=([string]$node.IsRequired -eq 'true');Default=[string]$node.DefaultValue} } }
+    $xml = Read-PasXml $text
+    foreach ($node in @($xml.DocumentElement.SelectNodes('ScriptParameter'))) { if ($node) { [pscustomobject]@{Name=[string]$node.Name;Type=[string]$node.Type;Required=([string]$node.IsRequired -eq 'true');Default=[string]$node.DefaultValue} } }
 }
 function New-PasCimSession {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Opens a read-only CIM session; it changes no state on the site.')]
     param([string]$SMSProvider)
     New-CimSession -ComputerName $SMSProvider -SessionOption (New-CimSessionOption -Protocol Dcom) -ErrorAction Stop
 }
@@ -198,10 +227,14 @@ function Get-PasSiteScript {
     } finally { Remove-CimSession $cim }
 }
 function New-PasManagedScript {
-    param([string]$Text,[string]$SMSProvider,[string]$SiteCode)
+    [CmdletBinding(SupportsShouldProcess)]
+    param([string]$Text,[string]$SMSProvider,[string]$SiteCode,[string]$ScriptName='')
+    if ([string]::IsNullOrWhiteSpace($Text)) { throw 'The script is empty. Enter the script text first.' }
     $parameters = @(Get-PasParameters -Text $Text)
     Assert-PasScriptParameters $parameters
-    $created = New-CMScript -ScriptName ('PivotsAndScripts-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + (Get-PasHash $Text).Substring(0,8)) -ScriptText $Text -Fast -ErrorAction Stop
+    if (-not $ScriptName) { $ScriptName = 'PivotsAndScripts-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + (Get-PasHash $Text).Substring(0,8) }
+    if (-not $PSCmdlet.ShouldProcess($ScriptName, 'Create script in Configuration Manager')) { return }
+    $created = New-CMScript -ScriptName $ScriptName -ScriptText $Text -Fast -ErrorAction Stop
     $guid = [string]$created.ScriptGuid
     if (-not $parameters.Count) { return [pscustomobject]@{ScriptGuid=$guid;Parameters=@()} }
     try {
@@ -235,6 +268,7 @@ function Get-PasSubmittedMessage {
 function ConvertTo-PasScriptArguments {
     param($SiteScript,[hashtable]$Parameters)
     if ($SiteScript.PSObject.Properties['DefinitionError'] -and $SiteScript.DefinitionError) { throw "The parameter definitions of script $($SiteScript.ScriptGuid) cannot be read: $($SiteScript.DefinitionError)" }
+    if ($null -eq $Parameters) { $Parameters = @{} }
     $defined = @{}
     foreach ($p in @($SiteScript.Parameters)) { $defined[$p.Name] = $p }
     $arguments = @{}
@@ -256,10 +290,13 @@ function ConvertTo-PasScriptArguments {
 }
 
 function Start-PasPivotRun {
+    [CmdletBinding(SupportsShouldProcess)]
     param([string]$SMSProvider,[string]$Query,[string]$CollectionId='',[int[]]$ResourceIds=@())
     # One operation per run: the site fans the query out to the clients, as the console does.
     $runs = @()
     if ($CollectionId -and -not (Test-PasCollectionId $CollectionId)) { throw "'$CollectionId' is not a collection ID." }
+    if (-not $CollectionId -and -not @($ResourceIds).Count) { throw 'Select at least one device or a collection.' }
+    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$(@($ResourceIds).Count) devices" }), 'Run CMPivot query')) { return }
     if ($CollectionId) { $runs += ,@{Path="Collections('$CollectionId')/AdminService.RunCMPivot";Body=@{InputQuery=$Query}} }
     else { $runs += ,@{Path='SMS_CMPivotStatus/AdminService.RunCMPivot';Body=@{InputQuery=$Query;ResourceIds=(@($ResourceIds) -join ',')}} }
     foreach ($run in $runs) {
@@ -269,20 +306,29 @@ function Start-PasPivotRun {
             $op = $raw.PSObject.Properties['OperationId']
             if (-not $op -and $raw.PSObject.Properties['value'] -and $null -ne $raw.value) { $op = $raw.value.PSObject.Properties['OperationId'] }
         }
-        if (-not $op -or [string]$op.Value -notmatch '^\d+$') { throw 'AdminService did not return a numeric OperationId.' }
+        if (-not $op -or [string]$op.Value -notmatch '^[0-9]+\z') { throw 'AdminService did not return a numeric OperationId.' }
         [pscustomobject]@{OperationID=[long]$op.Value;Raw=[pscustomobject]@{OperationId=[long]$op.Value;Target=$(if ($CollectionId) { "Collection $CollectionId" } else { "$(@($run.Body.ResourceIds -split ',').Count) devices" })}}
     }
 }
 function Get-PasPivotStatus {
     param([string]$SMSProvider,[long]$OperationID)
     $path = 'SMS_CMPivotStatus?$filter=ClientOperationId%20eq%20' + $OperationID
+    $seen = @{}
     while ($path) {
+        # A service that sends the same page link again would otherwise keep the worker here, deaf to the stop button.
+        if ($seen.ContainsKey($path)) { throw 'AdminService sent the same next page twice. The results cannot be read.' }
+        $seen[$path] = $true
         $page = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath $path
         if ($null -eq $page -or $page -is [string]) { return }
-        foreach ($row in @($page.value)) { if ($null -ne $row) { $row } }
+        $value = $page.PSObject.Properties['value']
+        if ($value) { foreach ($row in @($value.Value)) { if ($null -ne $row) { $row } } }
         $path = $null
         $next = $page.PSObject.Properties['@odata.nextLink']
-        if ($next -and $next.Value) { $path = ([string]$next.Value) -replace '^.*?/AdminService/v1\.0/', '' }
+        if ($next -and $next.Value) {
+            $link = [string]$next.Value
+            if ($link -notmatch '/AdminService/v1\.0/') { throw 'AdminService sent a next page link that this app cannot follow.' }
+            $path = $link -replace '^.*?/AdminService/v1\.0/', ''
+        }
     }
 }
 function ConvertFrom-PasPivotOutput {
@@ -290,7 +336,7 @@ function ConvertFrom-PasPivotOutput {
     # CMPivot status rows carry <result moreResults=".."><e _i="0" Column="value" .../></result>.
     $more = $false
     if ([string]::IsNullOrWhiteSpace($Output)) { return [pscustomobject]@{Rows=@();MoreResults=$false} }
-    $xml = [xml]$Output
+    $xml = Read-PasXml $Output
     if ($xml.DocumentElement -and [string]$xml.DocumentElement.GetAttribute('moreResults') -eq 'True') { $more = $true }
     $rows = @(foreach ($element in @($xml.DocumentElement.ChildNodes | Where-Object { $_.NodeType -eq 'Element' })) {
         $row = [ordered]@{TargetDevice=$Device;TargetResourceID=$ResourceID}
@@ -300,8 +346,12 @@ function ConvertFrom-PasPivotOutput {
     [pscustomobject]@{Rows=$rows;MoreResults=$more}
 }
 function Start-PasScriptRun {
+    [CmdletBinding(SupportsShouldProcess)]
     param([guid]$ScriptGuid,[hashtable]$Arguments=@{},[string]$CollectionId='',[int[]]$ResourceIds=@())
     # Configuration Manager remains responsible for approval and collection RBAC.
+    if ($CollectionId -and -not (Test-PasCollectionId $CollectionId)) { throw "'$CollectionId' is not a collection ID." }
+    if (-not $CollectionId -and -not @($ResourceIds).Count) { throw 'Select at least one device or a collection.' }
+    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$(@($ResourceIds).Count) devices" }), "Run script $ScriptGuid")) { return }
     if ($CollectionId) { $started = @(Invoke-CMScript -ScriptGuid $ScriptGuid.ToString() -CollectionId $CollectionId -ScriptParameter $Arguments -PassThru -ErrorAction Stop) }
     else {
         $devices = @(Invoke-CMWmiQuery -Query ('SELECT * FROM SMS_CombinedDeviceResources WHERE ResourceID IN ({0})' -f (@($ResourceIds) -join ',')) -Option Fast -ErrorAction Stop)
@@ -344,23 +394,27 @@ function Get-PasManagedScriptObject {
     $item
 }
 function Set-PasScriptApproval {
+    [CmdletBinding(SupportsShouldProcess)]
     param([guid]$ScriptGuid,[ValidateSet('Approve','Deny')][string]$Decision,[string]$Comment='')
     $item = Get-PasManagedScriptObject $ScriptGuid
+    if (-not $PSCmdlet.ShouldProcess([string]$item.ScriptGuid, "$Decision script")) { return }
     $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     try {
         if ($Decision -eq 'Approve') { Approve-CMScript -ScriptGuid $ScriptGuid.ToString() -Comment $Comment -ErrorAction Stop }
         else { Deny-CMScript -ScriptGuid $ScriptGuid.ToString() -Comment $Comment -ErrorAction Stop }
     } catch {
         # The provider reports only a generic error when an author approves or denies their own script.
-        if ([string]$item.Author -eq $me) { throw "The site did not let you $($Decision.ToLowerInvariant()) your own script. By default, Configuration Manager requires a second approver (hierarchy setting 'Script authors require additional script approver')." }
+        if ([string]$item.Author -eq $me) { throw "The site did not let you $($Decision.ToLowerInvariant()) your own script. By default, Configuration Manager requires a second approver (hierarchy setting 'Script authors require additional script approver'). The site said: $($_.Exception.Message)" }
         throw
     }
     $after = Get-CMScript -ScriptGuid $ScriptGuid.ToString() -Fast -ErrorAction Stop
     [pscustomobject]@{ScriptGuid=[string]$item.ScriptGuid;State=(Get-PasApprovalStateName ([int]$after.ApprovalState));Approver=[string]$after.Approver}
 }
 function Remove-PasManagedScript {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact='High')]
     param([guid]$ScriptGuid)
     $item = Get-PasManagedScriptObject $ScriptGuid
+    if (-not $PSCmdlet.ShouldProcess([string]$item.ScriptGuid, 'Remove script from Configuration Manager')) { return }
     Remove-CMScript -InputObject $item -Force -ErrorAction Stop
     [pscustomobject]@{ScriptGuid=[string]$item.ScriptGuid;State='Removed'}
 }
@@ -370,6 +424,7 @@ function Get-PasVisibleRows {
     ,@($ItemsSource | Where-Object { $null -ne $_ })
 }
 function New-PasDeviceTable {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Builds an in-memory table only.')]
     param([object[]]$Targets)
     # Device events carry no Client or Active value; the shell copies them from the target entry with the same key.
     $table = @{}
@@ -377,15 +432,18 @@ function New-PasDeviceTable {
     $table
 }
 function Sort-PasRows {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification='Sort reads naturally here; the name is public and the callers use it.')]
     param([object[]]$Rows,[string]$Property,[switch]$Descending)
+    if ($null -eq $Rows) { return }
     if (-not @($Rows | Where-Object { $null -ne $_ -and $_.PSObject.Properties[$Property] }).Count) { return $Rows }
     # AdminService returns CMPivot numbers as JSON strings; a column sorts as numbers only when every value parses as one.
     $values = @($Rows | ForEach-Object { if ($null -ne $_ -and $_.PSObject.Properties[$Property]) { $_.PSObject.Properties[$Property].Value } } | Where-Object { -not [string]::IsNullOrEmpty([string]$_) })
     $number = 0.0
     $numeric = $values.Count -gt 0 -and -not @($values | Where-Object { -not [double]::TryParse([string]$_, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$number) }).Count
+    # A row without the column sorts as an empty value.
     $key = if ($numeric) {
-        { $text = [string]$_.PSObject.Properties[$Property].Value; $parsed = 0.0; if ([double]::TryParse($text, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) { $parsed } else { [double]::MinValue } }
-    } else { { $_.PSObject.Properties[$Property].Value } }
+        { $cell = $_.PSObject.Properties[$Property]; $text = if ($cell) { [string]$cell.Value } else { '' }; $parsed = 0.0; if ([double]::TryParse($text, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) { $parsed } else { [double]::MinValue } }
+    } else { { $cell = $_.PSObject.Properties[$Property]; if ($cell) { $cell.Value } else { '' } } }
     $Rows | Sort-Object -Property @{Expression=$key} -Descending:$Descending
 }
 function Get-PasSettingsToSave {
