@@ -76,8 +76,15 @@ Describe 'Window test files carry the guard' {
         $text -match '(?s)if \(-not \$script:WindowGuard\.Allowed\) \{(?<denied>.*?)\r?\n\s*return\b' | Should -BeTrue
         $denied = $Matches['denied']
         $denied | Should -Match '\$script:AppConfig\s*='
-        $denied | Should -Match 'Views\s*='
-        $denied | Should -Match 'DialogFiles\s*='
+        # Evaluate the literal lists: each placeholder list must hold at least one case.
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($denied, [ref]$null, [ref]$null)
+        $table = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] -and @($n.KeyValuePairs | Where-Object { $_.Item1.Value -eq 'Views' }).Count -gt 0 }, $true)
+        $table | Should -Not -BeNullOrEmpty
+        foreach ($key in 'Views', 'DialogFiles') {
+            $pair = @($table.KeyValuePairs | Where-Object { $_.Item1.Value -eq $key })
+            $pair.Count | Should -Be 1
+            @($pair[0].Item2.SafeGetValue()).Count | Should -BeGreaterThan 0
+        }
         $denied | Should -Not -Match 'WindowConfig'
     }
 

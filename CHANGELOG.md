@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026.11.07.0009] - 2026-11-07
+
+## 2 placeholder lists that the window test guard now checks for content
+
+### Changed
+
+- Check that both placeholder lists hold at least one case.
+
 ## [2026.11.07.0008] - 2026-11-07
 
 ## 1 shared library refresh and window tests that cannot steal focus
