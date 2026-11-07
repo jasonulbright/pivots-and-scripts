@@ -9,6 +9,8 @@ A Configuration Manager workbench for realtime device investigation. Resolve a s
 
 ![Pivots and Scripts](screenshots/main-dark.png)
 
+Read the [user guide](docs/index.md) for every view, dialog and setting.
+
 ## Install
 
 Install with the [AppPackager Suite](https://github.com/jasonulbright/app-packager-suite/releases/latest) installer, or download the release zip:
