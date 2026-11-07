@@ -12,7 +12,12 @@ try {
         $script = New-PasManagedScript -Text $Request.Text -SMSProvider $Request.Provider -SiteCode $Request.SiteCode -Confirm:$false
         $approval = ''; $approved = $false
         if ($Request.AutoApprove) {
-            try { $null = Set-PasScriptApproval -ScriptGuid $script.ScriptGuid -Decision Approve -Comment 'Approved at submission by Pivots and Scripts.' -Confirm:$false; $approved = $true }
+            try {
+                $decision = Set-PasScriptApproval -ScriptGuid $script.ScriptGuid -Decision Approve -Comment 'Approved at submission by Pivots and Scripts.' -Confirm:$false
+                # The call returns the state that the site holds after the decision; only that state says the script is approved.
+                $approved = [bool]($decision -and $decision.State -eq 'Approved')
+                if (-not $approved) { $approval = 'The site reports the state: ' + $(if ($decision) { $decision.State } else { 'unknown' }) + '.' }
+            }
             catch { $approval = $_.Exception.Message }
         }
         Send-Event 'Submitted' ([pscustomobject]@{Guid=[string]$script.ScriptGuid;Hash=(Get-PasHash $Request.Text);Parameters=@($script.Parameters);Approved=$approved;ApprovalError=$approval})

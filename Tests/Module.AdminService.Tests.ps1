@@ -161,6 +161,8 @@ Describe 'Start-PasPivotRun' {
         $global:Fx.Calls.Count | Should -Be 0
     }
     It 'refuses a run without a collection and without devices' {
+        { Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -ResourceIds $null } | Should -Throw '*at least one device*'
+        { Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -ResourceIds @($null) } | Should -Throw '*at least one device*'
         { Start-PasPivotRun -SMSProvider 'p' -Query 'OS' } | Should -Throw '*at least one device*'
         { Start-PasPivotRun -SMSProvider 'p' -Query 'OS' -ResourceIds @() } | Should -Throw '*at least one device*'
         $global:Fx.Calls.Count | Should -Be 0
@@ -258,13 +260,16 @@ Describe 'Get-PasPivotStatus' {
         @{ Case = 'a text page';        Page = 'text' }
         @{ Case = 'an empty value';     Page = [pscustomobject]@{ value = @() } }
         @{ Case = 'a null value';       Page = [pscustomobject]@{ value = $null } }
-        @{ Case = 'a page without value'; Page = [pscustomobject]@{ other = 1 } }
     ) {
         $global:Fx.Pages = @($Page)
         $err = $null
         $rows = @(Get-PasPivotStatus -SMSProvider 'p' -OperationID 1 -ErrorVariable err -ErrorAction SilentlyContinue)
         $err | Should -BeNullOrEmpty
         $rows.Count | Should -Be 0
+    }
+    It 'refuses a page without a value list as a schema error' {
+        $global:Fx.Pages = @([pscustomobject]@{ other = 1 })
+        { Get-PasPivotStatus -SMSProvider 'p' -OperationID 1 } | Should -Throw '*without a value list*'
     }
     It 'skips a null row' {
         $global:Fx.Pages = @([pscustomobject]@{ value = @($null, [pscustomobject]@{ ResourceId = 4 }) })

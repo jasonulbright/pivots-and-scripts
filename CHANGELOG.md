@@ -2,7 +2,7 @@
 
 ## [2026.11.06.0006] - 2026-11-06
 
-## 17 defects fixed
+## 19 defects fixed
 
 ### Fixed
 
@@ -15,7 +15,9 @@
 - Show the site message when it refuses a self-approval.
 - Refuse to run on no devices and no collection.
 - Refuse to create an empty script.
-- Read result pages that hold no rows.
+- Report a status page without a value list as an error.
+- Show a script as not approved when the site keeps another state.
+- Drop the new history step when the session cannot be saved.
 - Stop reading result pages when the service repeats a page or sends a foreign link.
 - Sort a result column when some rows lack the column.
 - Save a null value as valid JSON.

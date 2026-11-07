@@ -485,6 +485,13 @@ Describe 'Start-PasWork run' {
         $ui.status.Text | Should -Be 'Working...'
         Wait-Work
     }
+    It 'launches no worker and keeps no new step when the history cannot be saved' {
+        New-Item -ItemType File -Path $dataRoot -Force | Out-Null
+        { Start-PasWork 'Run' } | Should -Throw
+        $script:work | Should -BeNullOrEmpty
+        @($script:session.Steps).Count | Should -Be 0
+        $script:step | Should -BeNullOrEmpty
+    }
     It 'runs to the end: rows, device states, step state, saved history and unlocked controls' {
         Start-PasWork 'Run'
         Wait-Work

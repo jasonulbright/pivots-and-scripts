@@ -166,7 +166,7 @@ Describe 'Resolve-PasTargets' {
         (Resolve-PasTargets -Kind Collection -InputText 'all systems').CollectionID | Should -Be 'SMS00001'
     }
     It 'refuses a collection name that matches <Count> collections' -ForEach @(@{ Count = 0 }, @{ Count = 2 }) {
-        $global:Fx.Collections = @(1..$Count | ForEach-Object { [pscustomobject]@{ Name = 'Dup'; CollectionID = ('MCM0000' + $_) } })
+        $global:Fx.Collections = @(for ($i = 1; $i -le $Count; $i++) { [pscustomobject]@{ Name = 'Dup'; CollectionID = ('MCM0000' + $i) } })
         { Resolve-PasTargets -Kind Collection -InputText 'Dup' } | Should -Throw "*Collection 'Dup' must resolve to exactly one device collection*"
         @($global:Fx.Calls | Where-Object { $_.Cmd -eq 'Device' }).Count | Should -Be 0
     }

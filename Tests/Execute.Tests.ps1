@@ -17,8 +17,8 @@ function Assert-PasConnection { param($SiteCode,$SMSProvider) Write-PasCall 'con
 function New-PasCimSession { param($SMSProvider) Write-PasCall 'cim-open'; [pscustomobject]@{ Name = 'cim' } }
 function Resolve-PasTargets { param($Kind,$InputText) Write-PasCall "resolve|$Kind|$InputText"; [pscustomobject]@{Targets=@([pscustomobject]@{Device='PC-1';ResourceID=1;Client=$true;Active=$true});Unknown=@();CollectionID='';ResolvedAt='t'} }
 function New-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($Text,$SMSProvider,$SiteCode) Write-PasCall "submit|$Text"; if ((Get-PasScn)['SubmitFail']) { throw (Get-PasScn)['SubmitFail'] }; [pscustomobject]@{ScriptGuid='GUID-1';Parameters=@('A','B')} }
-function Set-PasScriptApproval { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Decision,$Comment) Write-PasCall "approval|$ScriptGuid|$Decision|$Comment"; if ((Get-PasScn)['ApproveFail']) { throw (Get-PasScn)['ApproveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State='Approved';Approver='CONTOSO\approver'} }
-function Remove-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid) Write-PasCall "remove|$ScriptGuid"; if ((Get-PasScn)['RemoveFail']) { throw (Get-PasScn)['RemoveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State='Removed'} }
+function Set-PasScriptApproval { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Decision,$Comment) Write-PasCall "approval|$ScriptGuid|$Decision|$Comment"; Write-PasCall ('approval-confirm|' + $PSBoundParameters.ContainsKey('Confirm') + '|' + $PSBoundParameters['Confirm']); if ((Get-PasScn)['ApproveFail']) { throw (Get-PasScn)['ApproveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State=$(if ((Get-PasScn)['ApproveState']) { (Get-PasScn)['ApproveState'] } else { 'Approved' });Approver='CONTOSO\approver'} }
+function Remove-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid) Write-PasCall "remove|$ScriptGuid"; Write-PasCall ('remove-confirm|' + $PSBoundParameters.ContainsKey('Confirm') + '|' + $PSBoundParameters['Confirm']); if ((Get-PasScn)['RemoveFail']) { throw (Get-PasScn)['RemoveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State='Removed'} }
 function Get-PasSiteScripts { param($SMSProvider,$SiteCode) Write-PasCall 'list'; [pscustomobject]@{Name='S';ScriptGuid='G'} }
 function Get-PasSiteScript { param($SMSProvider,$SiteCode,$ScriptGuid)
     $s = Get-PasScn
@@ -128,6 +128,15 @@ Describe 'Worker script actions' {
         ($events | Where-Object Kind -eq 'Error').Value | Should -Be 'The site refused.'
         Get-Calls | Should -Not -Contain 'list'
     }
+    It 'passes -Confirm:$false to the removal, because the window already asked' {
+        Invoke-Worker (New-Request -Action 'Remove' -Extra @{ ScriptGuid = 'G' }) | Out-Null
+        Get-Calls | Should -Contain 'remove-confirm|True|False'
+    }
+    It 'passes -Confirm:$false to the approval, also at submission' {
+        Invoke-Worker (New-Request -Action 'Approve' -Extra @{ ScriptGuid = 'G' }) | Out-Null
+        Invoke-Worker (New-Request -Action 'Submit' -Extra @{ AutoApprove = $true }) | Out-Null
+        @(Get-Calls | Where-Object { $_ -eq 'approval-confirm|True|False' }).Count | Should -Be 2
+    }
     It 'lists the scripts of the site' {
         $events = Invoke-Worker (New-Request -Action 'Scripts')
         (@($events | ForEach-Object Kind) -join ',') | Should -Be 'Scripts,Done'
@@ -176,6 +185,13 @@ Describe 'Worker script submission' {
         $v = ($events | Where-Object Kind -eq 'Submitted').Value
         $v.Approved | Should -BeTrue
         Get-Calls | Should -Contain 'approval|GUID-1|Approve|Approved at submission by Pivots and Scripts.'
+    }
+    It 'reports the script as not approved when the site holds another state after the approval: <State>' -ForEach @(@{ State = 'Waiting for approval' }, @{ State = 'Denied' }) {
+        $events = Invoke-Worker (New-Request -Action 'Submit' -Extra @{ AutoApprove = $true }) -Scenario @{ ApproveState = $State }
+        (@($events | ForEach-Object Kind) -join ',') | Should -Be 'Submitted,Done'
+        $v = ($events | Where-Object Kind -eq 'Submitted').Value
+        $v.Approved | Should -BeFalse
+        $v.ApprovalError | Should -Be "The site reports the state: $State."
     }
     It 'keeps the new script and reports why the approval failed' {
         $events = Invoke-Worker (New-Request -Action 'Submit' -Extra @{ AutoApprove = $true }) -Scenario @{ ApproveFail = 'The site requires a second approver.' }
@@ -348,8 +364,12 @@ Describe 'Worker run' {
     }
     It 'forgets a polling error after a poll that works' {
         $row = @{ ResourceId = 11; DeviceName = 'PC-11'; ScriptExecutionState = 1; ScriptExitCode = 0; ErrorMessage = ''; ScriptOutput = $script:PivotOk }
-        $events = Invoke-Worker (New-Request) -Scenario @{ Rows = @($row) }
-        (Get-FinalState $events)['12'].State | Should -Be 'No response within timeout'
+        # The first poll fails, the second works and finds device 11, a third finds nothing more and the timeout ends the wait.
+        $events = Invoke-Worker (New-Request -Extra @{ TimeoutSeconds = 4 }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500 (Server Error).'; PollStatus = 500; PollThrowCount = 1; Rows = @($row) }
+        @(Get-Calls | Where-Object { $_ -eq 'poll' }).Count | Should -BeGreaterThan 2
+        $final = Get-FinalState $events
+        $final['11'].State | Should -Be 'Response received'
+        $final['12'].State | Should -Be 'No response within timeout'
     }
     It 'stops waiting on request and marks the devices that have not answered' {
         $row = @{ ResourceId = 11; DeviceName = 'PC-11'; ScriptExecutionState = 1; ScriptExitCode = 0; ErrorMessage = ''; ScriptOutput = $script:PivotOk }

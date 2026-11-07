@@ -109,7 +109,7 @@ function Refresh-PasResults {
 function Save-PasSession {
     if(-not @($script:session.Steps).Count){return}
     if($script:step -and $script:work -and $script:work.Action -eq 'Run'){$script:step.Results=@($script:rows);$script:step.Devices=@($script:states.Values);$script:step.Raw=@($script:rawRecords);$script:step.ResultCount=$script:rows.Count}
-    Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session
+    Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session -Confirm:$false
 }
 function Update-PasConnectionInfo { [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates an in-window TextBlock only.')] param() $ui.connectionInfo.Text=if($script:prefs.SiteCode -and $script:prefs.SMSProvider){'Site '+$script:prefs.SiteCode+' on '+$script:prefs.SMSProvider}else{'Connection not set. Open Options.'} }
 function Get-PasRunScope { param($Request) if($Request.CollectionId){"Configuration Manager receives one operation for collection $($Request.CollectionId)."}else{"Configuration Manager receives one operation for this device list."} }
@@ -145,7 +145,7 @@ function Start-PasWork {
         $script:rows.Clear();$script:states=New-PasDeviceTable $request.Targets;$script:rawRecords.Clear();$ui.raw.Clear()
         $script:step=[pscustomobject]@{Number=$script:session.Steps.Count+1;Mode=$script:mode;Started=[DateTime]::UtcNow.ToString('o');Ended=$null;State='Running';TargetCount=$request.Targets.Count;ResultCount=0;Text=$request.Text;Hash=(Get-PasHash $request.Text);SiteCode=$request.SiteCode;Provider=$request.Provider;User=[Security.Principal.WindowsIdentity]::GetCurrent().Name;Targets=$request.Targets;Parameters=$request.Parameters;ScriptGuid=$request.ScriptGuid;Results=@();Devices=@();Raw=@()}
         $script:session.Steps+= $script:step
-        Save-PasSession # Require history to be writable before submitting any operation.
+        try { Save-PasSession } catch { $script:session.Steps = @($script:session.Steps | Where-Object { $_ -ne $script:step }); $script:step = if (@($script:session.Steps).Count) { @($script:session.Steps)[-1] } else { $null }; throw } # Require history to be writable before submitting any operation.
     }
     $queue=[Collections.Concurrent.ConcurrentQueue[object]]::new();$control=[hashtable]::Synchronized(@{Stop=$false})
     $rs=[RunspaceFactory]::CreateRunspace();$rs.Open()
@@ -254,13 +254,13 @@ $ui.btnCsv.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-n
     # Endpoint data starting with = + - @ is a spreadsheet formula when the CSV opens.
     $safe=@($rows|ForEach-Object{$record=[ordered]@{};foreach($p in $_.PSObject.Properties){$value=$p.Value;if($value -is [string] -and $value -match '^[=+\-@\t\r]'){$value="'"+$value};$record[$p.Name]=$value};[pscustomobject]$record})
     $safe|Export-Csv -LiteralPath $path -NoTypeInformation -Encoding UTF8}}catch{Show-PasError $_}})
-$ui.btnJson.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to export.'};$path=Get-PasFilePath 'JSON|*.json' -Save;if($path){Write-PasJson $path @($rows)}}catch{Show-PasError $_}})
+$ui.btnJson.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to export.'};$path=Get-PasFilePath 'JSON|*.json' -Save;if($path){Write-PasJson $path @($rows) -Confirm:$false}}catch{Show-PasError $_}})
 $ui.btnCopy.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to copy.'}
     # Base64 keeps endpoint text out of PowerShell quoting; U+2018/U+2019 also close single-quoted strings.
     $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $rows -Depth 20 -Compress)))
     [Windows.Clipboard]::SetText("[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$encoded')) | ConvertFrom-Json");$ui.status.Text=[string]$rows.Count+' rows copied as PowerShell.'}catch{Show-PasError $_}})
 $ui.btnGrid.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to show.'};$rows|Out-GridView -Title 'Pivots and Scripts results'}catch{Show-PasError $_}})
-$ui.btnSaveSession.Add_Click({try{Save-PasSession;$path=Get-PasFilePath 'Session JSON|*.json' -Save;if($path){Write-PasJson $path $script:session}}catch{Show-PasError $_}})
+$ui.btnSaveSession.Add_Click({try{Save-PasSession;$path=Get-PasFilePath 'Session JSON|*.json' -Save;if($path){Write-PasJson $path $script:session -Confirm:$false}}catch{Show-PasError $_}})
 $ui.btnNewSession.Add_Click({try{Save-PasSession;$script:session=[pscustomobject]@{SchemaVersion=1;ID=[guid]::NewGuid().ToString();Created=[DateTime]::UtcNow.ToString('o');Steps=@()};$script:step=$null;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();$ui.raw.Clear();Refresh-PasResults}catch{Show-PasError $_}})
 $ui.btnHistory.Add_Click({try{$path=Get-PasFilePath 'Session JSON|*.json';if($path){$loaded=[IO.File]::ReadAllText($path)|ConvertFrom-Json;if($loaded.SchemaVersion -ne 1 -or [string]$loaded.ID -notmatch '^[a-fA-F0-9-]{36}$'){throw 'Unsupported session file.'};$script:session=$loaded;$script:step=@($loaded.Steps)|Select-Object -Last 1;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();if($script:step){foreach($row in @($script:step.Results)){$script:rows.Add($row)};foreach($item in @($script:step.Devices)){$script:states[[string]$item.ResourceID]=$item};Set-PasMode $script:step.Mode;$ui.editor.Text=$script:step.Text;$ui.raw.Text=$script:step.Raw|ConvertTo-Json -Depth 20};$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Historical session opened. Resolve fresh targets before running.';Refresh-PasResults}}catch{Show-PasError $_}})
 $ui.toggleTheme.Add_Toggled({$dark=$ui.toggleTheme.IsOn;[void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($window,$(if($dark){'Dark.Steel'}else{'Light.Blue'}));$ui.txtThemeLabel.Text=if($dark){'Dark Theme'}else{'Light Theme'};Set-ButtonTheme -IsDark $dark;Update-SidebarButtonTheme;Update-TitleBarBrushes;Set-PasHighlighting})
@@ -272,4 +272,4 @@ if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]
 # Suite update notice: one shared daily lookup across the suite tools; the launcher installs.
 $null = Start-SuiteUpdateNotice -Path $PSScriptRoot -OnResult { param($u) if ($u.Available) { $ui.status.Text = ('Suite update available: v{0}. Update from the AppPackager Suite Launcher.' -f $u.Latest) } }
 try{$window.ShowDialog()|Out-Null}finally{$timer.Stop()}
-if($SmokeTest){$log=[IO.File]::ReadAllText($smokeLog);if(($log -replace 'tick|close|\s','').Length){throw $log};Write-Output 'PASS: WPF startup, dark/light themes, mode switches, editor, window close and session persistence.'}
+if($SmokeTest){$log=[IO.File]::ReadAllText($smokeLog);if(($log -replace 'tick|close|\s','').Length -or $log -notmatch 'tick' -or $log -notmatch 'close'){throw ('Smoke log incomplete: '+$log)};Write-Output 'PASS: WPF startup, dark/light themes, mode switches, editor, window close and session persistence.'}

@@ -26,6 +26,7 @@ $name1 = "ZZTEST-PAS-$tag-script"
 $name2 = "ZZTEST-PAS-$tag-deny"
 $ns = "root\SMS\site_$SiteCode"
 $snapshot = $null
+$snapshotTaken = $false
 $cim = $null
 
 function Get-Snapshot {
@@ -35,7 +36,7 @@ function Get-Snapshot {
 }
 function Test-Throws {
     param([scriptblock]$Script, [string]$Pattern)
-    try { & $Script; return $false } catch { return ($_.Exception.Message -like $Pattern) }
+    try { $null = & $Script; return $false } catch { return ($_.Exception.Message -like $Pattern) }
 }
 function Wait-Until {
     param([scriptblock]$Condition, [int]$Seconds)
@@ -64,6 +65,7 @@ try {
     Add-Result 'a site code the provider does not host is refused' (Test-Throws { Assert-PasConnection -SiteCode 'ZZ9' -SMSProvider $Provider } '*Site ZZ9*') ''
     Add-Result 'the connection is checked again after the refusal' ($null -eq (Assert-PasConnection -SiteCode $SiteCode -SMSProvider $Provider)) ''
     $snapshot = Get-Snapshot
+    $snapshotTaken = $true
 
     $r = Resolve-PasTargets -Kind Device -InputText $ClientName
     $client = @($r.Targets)[0]
@@ -168,11 +170,14 @@ finally {
     try {
         $left = @(Get-CimInstance -Namespace $ns -ClassName SMS_Scripts -Filter "ScriptName LIKE 'ZZTEST-PAS-$tag-%'")
         Add-Result 'no ZZTEST- script of this run remains' ($left.Count -eq 0) ''
-        if ($snapshot) {
+        if ($snapshotTaken) {
             $after = Get-Snapshot
             Add-Result 'other scripts are unchanged' ((@($snapshot) -join "`n") -ceq (@($after) -join "`n")) ''
         }
     } catch { Add-Result 'verify cleanup' $false $_.Exception.Message }
 }
 
-$results.ToArray() | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $ModuleRoot 'results.json') -Encoding UTF8
+# The caller polls for results.json: write a temporary file and rename it, so the caller never reads a half-written file.
+$resultsTemp = Join-Path $ModuleRoot 'results.json.tmp'
+$results.ToArray() | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $resultsTemp -Encoding UTF8
+Move-Item -LiteralPath $resultsTemp -Destination (Join-Path $ModuleRoot 'results.json') -Force

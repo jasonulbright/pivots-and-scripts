@@ -73,6 +73,13 @@ $script:HarnessBootstrap = {
         Sync-Layout $Window
     }
 
+    # Representative text in the boxes that are empty at start-up, so the contrast of entered text is measured too.
+    function Set-TestFixtureText {
+        param($Window)
+        $values = @{ targetInput = 'CLIENT01, CLIENT02'; scriptGuid = '685E0A08-8ACE-4948-BE8F-9D0416852976'; resultFilter = 'disk'; findText = 'Disk'; replaceText = 'OS' }
+        foreach ($name in $values.Keys) { $box = $Window.FindName($name); if ($box) { $box.Text = $values[$name] } }
+    }
+
     function Sync-Layout {
         param($Window)
         $Window.UpdateLayout()

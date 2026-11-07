@@ -39,6 +39,8 @@ $session = New-PSSession -ComputerName $ComputerName -Credential $LabCredential
 $remoteRoot = $null
 $taskName = 'ZZTEST-PAS-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 $results = @()
+$done = $false
+$script:CleanupFailed = $false
 try {
     $remoteRoot = Invoke-Command -Session $session -ScriptBlock {
         $p = Join-Path $env:SystemRoot ('Temp\ZZTEST-pas-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
@@ -56,7 +58,7 @@ try {
         $wrapper = Join-Path $root 'run.ps1'
         @(
             '$ErrorActionPreference = ''Continue'''
-            "& '$root\Pas.Lab.Remote.ps1' -ModuleRoot '$root' -SiteCode '$site' -Provider '$prov' | Out-Null"
+            "& '$root\Pas.Lab.Remote.ps1' -ModuleRoot '$($root.Replace("'", "''"))' -SiteCode '$($site.Replace("'", "''"))' -Provider '$($prov.Replace("'", "''"))' | Out-Null"
         ) | Set-Content -LiteralPath $wrapper -Encoding UTF8
         $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $wrapper)
         Register-ScheduledTask -TaskName $task -Action $action -User $user -Password $pw -RunLevel Highest -Force | Out-Null

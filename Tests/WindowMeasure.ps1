@@ -87,7 +87,7 @@ $script:MeasureFunctions = {
             if ($e.ActualWidth -le 0 -or $e.ActualHeight -le 0) { continue }
             $sc = Get-SolidColor $fg
             if (-not $sc) { continue }
-            $backdrop = if ($e -is [System.Windows.Controls.TextBox] -and (Get-SolidColor $e.Background) -and (Get-SolidColor $e.Background).Color.A -gt 0) {
+            $backdrop = if (($e -is [System.Windows.Controls.TextBox] -or $e -is [System.Windows.Controls.TextBlock]) -and (Get-SolidColor $e.Background) -and (Get-SolidColor $e.Background).Color.A -gt 0) {
                 Merge-Color (Get-SolidColor $e.Background).Color (Get-SolidColor $e.Background).Opacity (Get-BackdropColor $e $under $Window)
             } else { Get-BackdropColor $e $under $Window }
             $opacity = (Get-ElementOpacity $e) * $sc.Opacity
@@ -99,7 +99,7 @@ $script:MeasureFunctions = {
                 Tag = $Tag; Name = $name; Text = $text.Substring(0, [math]::Min(40, $text.Length))
                 Size = $e.FontSize; Bold = ($e.FontWeight.ToOpenTypeWeight() -ge 700)
                 Foreground = $fgc.ToString(); Backdrop = $backdrop.ToString()
-                Ratio = [math]::Round((Get-ContrastRatio $fgc $backdrop), 2)
+                Ratio = (Get-ContrastRatio $fgc $backdrop)
             }
         }
         return $rows
@@ -117,7 +117,7 @@ $script:MeasureFunctions = {
             if (-not $bg) { continue }
             $back = Merge-Color $bg.Color $bg.Opacity ([System.Windows.Media.Colors]::Black)
             $front = Merge-Color $fg.Color $fg.Opacity $back
-            $result[$state] = [math]::Round((Get-ContrastRatio $front $back), 2)
+            $result[$state] = (Get-ContrastRatio $front $back)
         }
         return [PSCustomObject]$result
     }
@@ -129,11 +129,18 @@ $script:MeasureFunctions = {
         foreach ($e in (Get-VisualDescendants $Window)) {
             if ($e -isnot [System.Windows.Controls.TextBlock]) { continue }
             if ([string]::IsNullOrEmpty($e.Text) -or -not (Test-VisibleInTree $e) -or $e.ActualWidth -le 0) { continue }
-            if ($e.TextWrapping -ne 'NoWrap' -or $e.TextTrimming -ne 'None') { continue }
+            $wrapped = $e.TextWrapping -ne 'NoWrap'
+            if (-not $wrapped -and $e.TextTrimming -ne 'None') { continue }
             $tf = New-Object System.Windows.Media.Typeface($e.FontFamily, $e.FontStyle, $e.FontWeight, $e.FontStretch)
             $ft = New-Object System.Windows.Media.FormattedText($e.Text, [System.Globalization.CultureInfo]::CurrentCulture,
                 [System.Windows.FlowDirection]::LeftToRight, $tf, $e.FontSize, [System.Windows.Media.Brushes]::Black, [System.Windows.Media.VisualTreeHelper]::GetDpi($e).PixelsPerDip)
-            if ($e.ActualWidth + 1 -lt $ft.WidthIncludingTrailingWhitespace) {
+            if ($wrapped) {
+                $ft.MaxTextWidth = [math]::Max(1, $e.ActualWidth - $e.Padding.Left - $e.Padding.Right)
+                if ($e.ActualHeight + 1 -lt ($ft.Height + $e.Padding.Top + $e.Padding.Bottom)) {
+                    $rows += [PSCustomObject]@{ Name = $e.Name; Text = $e.Text; Needed = [math]::Round($ft.Height + $e.Padding.Top + $e.Padding.Bottom, 1); Actual = [math]::Round($e.ActualHeight, 1) }
+                }
+            }
+            elseif ($e.ActualWidth + 1 -lt $ft.WidthIncludingTrailingWhitespace) {
                 $rows += [PSCustomObject]@{ Name = $e.Name; Text = $e.Text; Needed = [math]::Round($ft.WidthIncludingTrailingWhitespace, 1); Actual = [math]::Round($e.ActualWidth, 1) }
             }
         }
@@ -180,11 +187,13 @@ $script:MeasureFunctions = {
             $sc = Get-SolidColor $Control.Foreground
             if ($sc) { $r = Get-ContrastRatio (Merge-Color $sc.Color ($o * $sc.Opacity) $backdrop) $backdrop; if ($null -eq $worst -or $r -lt $worst) { $worst = $r } }
         }
-        if ($null -ne $worst) { $row.TextRatio = [math]::Round($worst, 2) }
+        if ($null -ne $worst) { $row.TextRatio = $worst }
         $bsc = Get-SolidColor $Control.BorderBrush
         if ($bsc -and $Control.BorderThickness.Left -gt 0) {
             $outside = Get-BackdropColor $Control $under $Window
-            $row.BorderRatio = [math]::Round((Get-ContrastRatio (Merge-Color $bsc.Color ($o * $bsc.Opacity) $outside) $outside), 2)
+            $bd = Get-VisualDescendants $Control | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Name -eq 'Bd' } | Select-Object -First 1
+            $borderOpacity = $o * $(if ($bd) { $bd.Opacity } else { 1.0 })
+            $row.BorderRatio = (Get-ContrastRatio (Merge-Color $bsc.Color ($borderOpacity * $bsc.Opacity) $outside) $outside)
         }
         return [PSCustomObject]$row
     }

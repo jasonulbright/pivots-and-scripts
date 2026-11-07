@@ -23,6 +23,7 @@ try {
             $global:ui = @{}
             foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
             $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
+            Set-TestFixtureText $w
             $script:mode = 'Pivot'
             $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
             $out = @()

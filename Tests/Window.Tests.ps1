@@ -75,6 +75,7 @@ BeforeAll {
             $global:ui = @{}
             foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
             $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
+            Set-TestFixtureText $w
             $script:mode = 'Pivot'
             $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
             # Contrast is read only at 1440x900. Clipped text and off-screen controls are read at both sizes.
@@ -91,8 +92,8 @@ BeforeAll {
                     Heading     = [string]$global:ui.heading.Text
                     GuidVisible = [string]$global:ui.scriptGuid.Visibility
                     RunText     = [string]$global:ui.btnRun.Content
-                    Width       = $w.ActualWidth
-                    Height      = $w.ActualHeight
+                    MinWidth    = $w.MinWidth
+                    MinHeight   = $w.MinHeight
                     Text        = if ($full) { @(Get-TextContrast $w) } else { @() }
                     Clipped     = @(Get-ClippedText $w)
                     Offscreen   = @(Get-OffscreenControls $w)
@@ -160,10 +161,11 @@ Describe 'Main window XAML' {
         ($script:Measured['dark|1440x900'] | Where-Object View -eq $View).Heading | Should -Be $expected
     }
 
-    It 'opens at the requested size <Size> in the <Theme> theme; a larger minimum size would stop it' -ForEach $script:Matrix {
+    It 'has a minimum size that fits the size <Size>, so the window can open at it' -ForEach $script:Matrix {
+        # The window is clamped to the work area of the screen, so the test compares the declared minimum and not the size it got.
         $m = $script:Measured['{0}|{1}' -f $Theme, $Size] | Select-Object -First 1
-        $m.Width | Should -Be $W
-        $m.Height | Should -Be $H
+        $m.MinWidth | Should -BeLessOrEqual $W
+        $m.MinHeight | Should -BeLessOrEqual $H
     }
 }
 
@@ -245,13 +247,36 @@ Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix {
     }
 }
 
+Describe 'Contrast measurement' {
+    It 'measures a text block on its own solid background, not on the parent' {
+        $xaml = '<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Probe" Width="300" Height="200"><StackPanel Background="#101010"><TextBlock x:Name="same" Text="White on white" Foreground="#FFFFFF" Background="#FFFFFF"/><TextBlock x:Name="plain" Text="White on dark" Foreground="#FFFFFF"/></StackPanel></Controls:MetroWindow>'
+        $r = Invoke-WpfSta -Arguments @{ Xaml = $xaml } -Script {
+            $w = Open-TestWindow -XamlText $Arguments.Xaml
+            $rows = @(Get-TextContrast $w)
+            $o = [PSCustomObject]@{ Same = ($rows | Where-Object Name -eq 'same').Ratio; Plain = ($rows | Where-Object Name -eq 'plain').Ratio }
+            $w.Close(); $o
+        }
+        $r.Same | Should -BeLessThan 1.5
+        $r.Plain | Should -BeGreaterThan 10
+    }
+    It 'keeps the contrast ratio unrounded' {
+        $xaml = '<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Probe" Width="300" Height="200"><StackPanel Background="#101010"><TextBlock x:Name="grey" Text="Grey" Foreground="#7A7A7A"/></StackPanel></Controls:MetroWindow>'
+        $r = Invoke-WpfSta -Arguments @{ Xaml = $xaml } -Script {
+            $w = Open-TestWindow -XamlText $Arguments.Xaml
+            $v = (@(Get-TextContrast $w) | Where-Object Name -eq 'grey').Ratio
+            $w.Close(); $v
+        }
+        [math]::Round($r, 2) | Should -Not -Be $r
+    }
+}
+
 Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) {
     It 'shows every text at 4.5:1 (3:1 for large text) in the <View> view, except the listed known defects' -ForEach $script:ViewCases {
         $m = ($script:Measured['{0}|1440x900' -f $Theme] | Where-Object View -eq $View)
         $m.Text.Count | Should -BeGreaterThan 3
         $known = @(Get-KnownContrastDefect -Theme $Theme)
         $bad = $m.Text | Where-Object { $min = if (Test-LargeText $_) { 3.0 } else { 4.5 }; $_.Ratio -lt $min -and ($known -notcontains ('text:{0}' -f $_.Text)) }
-        $bad | ForEach-Object { '{0} "{1}" {2} on {3} = {4}' -f $_.Name, $_.Text, $_.Foreground, $_.Backdrop, $_.Ratio } | Should -BeNullOrEmpty
+        $bad | ForEach-Object { '{0} "{1}" {2} on {3} = {4:N2}' -f $_.Name, $_.Text, $_.Foreground, $_.Backdrop, $_.Ratio } | Should -BeNullOrEmpty
     }
     It 'keeps the title text readable on the active title bar' {
         $tb = ($script:Measured['{0}|1440x900' -f $Theme] | Select-Object -First 1).TitleBar

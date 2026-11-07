@@ -295,8 +295,9 @@ function Start-PasPivotRun {
     # One operation per run: the site fans the query out to the clients, as the console does.
     $runs = @()
     if ($CollectionId -and -not (Test-PasCollectionId $CollectionId)) { throw "'$CollectionId' is not a collection ID." }
-    if (-not $CollectionId -and -not @($ResourceIds).Count) { throw 'Select at least one device or a collection.' }
-    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$(@($ResourceIds).Count) devices" }), 'Run CMPivot query')) { return }
+    $ResourceIds = @($ResourceIds | Where-Object { $_ -gt 0 })
+    if (-not $CollectionId -and -not $ResourceIds.Count) { throw 'Select at least one device or a collection.' }
+    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$($ResourceIds.Count) devices" }), 'Run CMPivot query')) { return }
     if ($CollectionId) { $runs += ,@{Path="Collections('$CollectionId')/AdminService.RunCMPivot";Body=@{InputQuery=$Query}} }
     else { $runs += ,@{Path='SMS_CMPivotStatus/AdminService.RunCMPivot';Body=@{InputQuery=$Query;ResourceIds=(@($ResourceIds) -join ',')}} }
     foreach ($run in $runs) {
@@ -321,7 +322,8 @@ function Get-PasPivotStatus {
         $page = Invoke-PasAdminService -SMSProvider $SMSProvider -RelativePath $path
         if ($null -eq $page -or $page -is [string]) { return }
         $value = $page.PSObject.Properties['value']
-        if ($value) { foreach ($row in @($value.Value)) { if ($null -ne $row) { $row } } }
+        if (-not $value) { throw 'AdminService returned a status page without a value list.' }
+        foreach ($row in @($value.Value)) { if ($null -ne $row) { $row } }
         $path = $null
         $next = $page.PSObject.Properties['@odata.nextLink']
         if ($next -and $next.Value) {
@@ -350,8 +352,9 @@ function Start-PasScriptRun {
     param([guid]$ScriptGuid,[hashtable]$Arguments=@{},[string]$CollectionId='',[int[]]$ResourceIds=@())
     # Configuration Manager remains responsible for approval and collection RBAC.
     if ($CollectionId -and -not (Test-PasCollectionId $CollectionId)) { throw "'$CollectionId' is not a collection ID." }
-    if (-not $CollectionId -and -not @($ResourceIds).Count) { throw 'Select at least one device or a collection.' }
-    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$(@($ResourceIds).Count) devices" }), "Run script $ScriptGuid")) { return }
+    $ResourceIds = @($ResourceIds | Where-Object { $_ -gt 0 })
+    if (-not $CollectionId -and -not $ResourceIds.Count) { throw 'Select at least one device or a collection.' }
+    if (-not $PSCmdlet.ShouldProcess($(if ($CollectionId) { "collection $CollectionId" } else { "$($ResourceIds.Count) devices" }), "Run script $ScriptGuid")) { return }
     if ($CollectionId) { $started = @(Invoke-CMScript -ScriptGuid $ScriptGuid.ToString() -CollectionId $CollectionId -ScriptParameter $Arguments -PassThru -ErrorAction Stop) }
     else {
         $devices = @(Invoke-CMWmiQuery -Query ('SELECT * FROM SMS_CombinedDeviceResources WHERE ResourceID IN ({0})' -f (@($ResourceIds) -join ',')) -Option Fast -ErrorAction Stop)
@@ -435,6 +438,7 @@ function Sort-PasRows {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification='Sort reads naturally here; the name is public and the callers use it.')]
     param([object[]]$Rows,[string]$Property,[switch]$Descending)
     if ($null -eq $Rows) { return }
+    $Rows = @($Rows | Where-Object { $null -ne $_ })
     if (-not @($Rows | Where-Object { $null -ne $_ -and $_.PSObject.Properties[$Property] }).Count) { return $Rows }
     # AdminService returns CMPivot numbers as JSON strings; a column sorts as numbers only when every value parses as one.
     $values = @($Rows | ForEach-Object { if ($null -ne $_ -and $_.PSObject.Properties[$Property]) { $_.PSObject.Properties[$Property].Value } } | Where-Object { -not [string]::IsNullOrEmpty([string]$_) })

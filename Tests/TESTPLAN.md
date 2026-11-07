@@ -4,9 +4,9 @@ Measured 2026-11-06 with `Invoke-Checks.ps1` (Pester 5.7.1, PSScriptAnalyzer 1.2
 
 | | Before | After |
 |---|---|---|
-| Tests | 51 | 790 on Windows PowerShell 5.1; 790 on PowerShell 7 (16 skip on 7: the contract tests need the console) |
-| Module coverage | 69.0% (420 of 609 commands) | 99.9% (677 of 678 commands) |
-| Lab steps | none | 34 (`Tests/Lab`) |
+| Tests | 51 | 798 on Windows PowerShell 5.1; 798 on PowerShell 7 (16 skip on 7: the contract tests need the console) |
+| Module coverage | 69.0% (420 of 609 commands) | 99.9% (686 of 687 commands) |
+| Lab steps | none | 35 (`Tests/Lab`) |
 
 Run: `.\Invoke-Checks.ps1` (lint, tests, coverage floor 80%). It runs in CI on both hosts (`.github/workflows/checks.yml`).
 
@@ -44,7 +44,7 @@ Each has a failing test in the first commit and the fix in the second. The fix c
 | 7 | The message for a refused self-approval hid the message of the site | `Set-PasScriptApproval` |
 | 8 | A run with no devices and no collection was sent to the site | `Start-PasPivotRun`, `Start-PasScriptRun` |
 | 9 | An empty script was created on the site | `New-PasManagedScript` |
-| 10 | A status page with no `value` property raised a property error | `Get-PasPivotStatus` |
+| 10 | A status page with no `value` property raised a property error; it is now a clear schema error | `Get-PasPivotStatus` |
 | 11 | A repeated or foreign next-page link was followed (an endless loop that ignores the stop button) | `Get-PasPivotStatus` |
 | 12 | A sort failed when some rows lack the column; a null row list returned a null row | `Sort-PasRows` |
 | 13 | A null value wrote an empty file on Windows PowerShell 5.1 | `Write-PasJson` |
@@ -52,6 +52,8 @@ Each has a failing test in the first commit and the fix in the second. The fix c
 | 15 | One device with unreadable output stopped the whole run | `Execute.Tests.ps1` |
 | 16 | The error message had the same title as the main window | `Window.Tests.ps1`, `Shell.Logic.Tests.ps1` |
 | 17 | The window could not open at 1024 pixels wide (minimum width 1100) | `Window.Tests.ps1` |
+| 18 | Approval at submission was reported as done without a check of the state that the site holds | `Execute.Tests.ps1` |
+| 19 | A failed history save left a new step in the session although no worker started | `Shell.Logic.Tests.ps1` |
 
 Also changed: the mutating functions (`New-PasManagedScript`, `Set-PasScriptApproval`, `Remove-PasManagedScript`, `Start-PasPivotRun`, `Start-PasScriptRun`, `Write-PasJson`) support `-WhatIf` and `-Confirm`. The worker passes `-Confirm:$false` because the window already asked. `New-PasManagedScript` takes an optional `-ScriptName`, which the lab test uses to name its scripts. Lint findings were fixed with suppression attributes that state why (function names and in-window helpers), and with the rename of the unused `$sender` parameter of five handlers.
 

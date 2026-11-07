@@ -277,22 +277,24 @@ Describe 'ConvertFrom-PasPivotOutput' {
         { ConvertFrom-PasPivotOutput -Output 'not xml' -Device 'D' -ResourceID 1 } | Should -Throw
         { ConvertFrom-PasPivotOutput -Output '<result><e A="1"></result>' -Device 'D' -ResourceID 1 } | Should -Throw
     }
-    It 'does not expand an entity that the output declares' {
-        $xml = '<!DOCTYPE result [<!ENTITY big "EXPANDED">]><result><e A="&big;" /></result>'
-        $text = $null
-        try { $text = @((ConvertFrom-PasPivotOutput -Output $xml -Device 'D' -ResourceID 1).Rows | ForEach-Object A) -join ',' } catch { $text = 'rejected' }
-        $text | Should -Be 'rejected'
+    It 'refuses a document type in the output, with an error about the document type' {
+        $xml = '<!DOCTYPE result [<!ENTITY big "EXPANDED">]><result><e A="1" />&big;</result>'
+        { ConvertFrom-PasPivotOutput -Output $xml -Device 'D' -ResourceID 1 } | Should -Throw '*DTD*'
     }
-    It 'rejects a document type that points to a file' {
+    It 'refuses an entity that points to a file, with an error about the document type' {
         $marker = Join-Path $TestDrive 'secret.txt'
         Set-Content -LiteralPath $marker -Value 'SECRET-CONTENT'
-        $xml = '<!DOCTYPE result [<!ENTITY x SYSTEM "file:///' + ($marker -replace '\\', '/') + '">]><result><e A="&x;" /></result>'
-        $text = $null
-        try { $text = @((ConvertFrom-PasPivotOutput -Output $xml -Device 'D' -ResourceID 1).Rows | ForEach-Object A) -join ',' } catch { $text = 'rejected' }
-        $text | Should -Not -Match 'SECRET-CONTENT'
+        $uri = ([Uri]$marker).AbsoluteUri
+        $xml = '<!DOCTYPE result [<!ENTITY x SYSTEM "' + $uri + '">]><result>&x;</result>'
+        $caught = $null
+        try { Read-PasXml $xml } catch { $caught = $_.Exception.Message }
+        $caught | Should -BeLike '*DTD*'
+        $caught | Should -Not -Match 'SECRET-CONTENT'
+    }
+    It 'reads a plain document through Read-PasXml' {
+        (Read-PasXml '<a b="1"><c/></a>').DocumentElement.GetAttribute('b') | Should -Be '1'
     }
 }
-
 Describe 'Get-PasVisibleRows' {
     It 'returns an array with Count 1 for one visible row' {
         $rows = Get-PasVisibleRows @([pscustomobject]@{Device = 'CLIENT01' })
@@ -371,7 +373,9 @@ Describe 'Sort-PasRows' {
     It 'returns nothing for no rows and ignores null rows' {
         @(Sort-PasRows -Rows @() -Property V).Count | Should -Be 0
         @(Sort-PasRows -Rows $null -Property V).Count | Should -Be 0
-        (@(Sort-PasRows -Rows @($null, [pscustomobject]@{ V = '2' }, [pscustomobject]@{ V = '1' }) -Property V) | Where-Object { $_ } | ForEach-Object V) -join ',' | Should -Be '1,2'
+        $err = $null
+        (@(Sort-PasRows -Rows @($null, [pscustomobject]@{ V = '2' }, [pscustomobject]@{ V = '1' }) -Property V -ErrorVariable err -ErrorAction SilentlyContinue) | ForEach-Object V) -join ',' | Should -Be '1,2'
+        $err | Should -BeNullOrEmpty
     }
     It 'returns one row as one row' {
         @(Sort-PasRows -Rows @([pscustomobject]@{ V = '1' }) -Property V).Count | Should -Be 1
@@ -385,6 +389,10 @@ Describe 'Sort-PasRows' {
         $sorted = @(Sort-PasRows -Rows $rows -Property V -ErrorVariable err -ErrorAction SilentlyContinue)
         $err | Should -BeNullOrEmpty
         $sorted.Count | Should -Be 3
+        # A row without the column sorts as an empty value, so it comes first.
+        $sorted[0].PSObject.Properties['V'] | Should -BeNullOrEmpty
+        $sorted[1].V | Should -Be $B
+        $sorted[2].V | Should -Be $A
     }
     It 'does not throw on hostile numeric text: <Text>' -ForEach @(
         @{ Text = 'NaN' }, @{ Text = 'Infinity' }, @{ Text = '-Infinity' }, @{ Text = '1e999' }, @{ Text = '0x10' }

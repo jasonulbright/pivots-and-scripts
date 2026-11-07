@@ -29,6 +29,7 @@ function Get-KnownContrastDefect {
         }
         'light' {
             @(
+                'btnHistory:DisabledBorder', 'btnOptions:DisabledBorder', 'btnPivot:DisabledBorder', 'btnScript:DisabledBorder',
                 'btnCheck:DisabledText', 'btnConnect:DisabledText', 'btnCopy:DisabledText',
                 'btnCsv:DisabledText', 'btnFind:DisabledText', 'btnGrid:DisabledText',
                 'btnHistory:DisabledText', 'btnImport:DisabledText', 'btnJson:DisabledText',

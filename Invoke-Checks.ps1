@@ -53,7 +53,9 @@ if (-not $SkipLint) {
     # Test files pass state to mock bodies through a global variable, and they define fake window controls that the code under test reads by name. Both are intended.
     $testOnlyExclude = 'PSAvoidGlobalVars', 'PSUseDeclaredVarsMoreThanAssignments', 'PSUseShouldProcessForStateChangingFunctions'
     $findings = @(foreach ($t in $targets) {
-        if ($t.FullName -like '*\Tests\*' -or $t.Name -like '*.Tests.ps1') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
+        # Classify by the path below the repository root, so a checkout under a folder named Tests is not read as test code.
+        $relative = $t.FullName.Substring($root.Length)
+        if ($relative -like '\Tests\*' -or $t.Name -like '*.Tests.ps1') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
         else { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings }
     })
     $blocking = @($findings | Where-Object { $_.Severity -in 'Error', 'Warning' })

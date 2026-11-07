@@ -374,6 +374,8 @@ Describe 'Start-PasScriptRun' {
     }
     It 'refuses a run without a collection and without devices' {
         { Start-PasScriptRun -ScriptGuid ([guid]::NewGuid()) } | Should -Throw '*at least one device*'
+        { Start-PasScriptRun -ScriptGuid ([guid]::NewGuid()) -ResourceIds $null } | Should -Throw '*at least one device*'
+        { Start-PasScriptRun -ScriptGuid ([guid]::NewGuid()) -ResourceIds @($null) } | Should -Throw '*at least one device*'
         Should -Invoke Invoke-CMScript -ModuleName PivotsAndScripts -Times 0 -Exactly
         Should -Invoke Invoke-CMWmiQuery -ModuleName PivotsAndScripts -Times 0 -Exactly
     }
