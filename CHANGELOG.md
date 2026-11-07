@@ -7,7 +7,7 @@
 ### Changed
 
 - Check that both placeholder lists hold at least one case.
-- Run window tests only when the SUITE_ALLOW_WINDOW_TESTS opt-in is set.
+- Run window tests only when the SUITE_ALLOW_WINDOW_TESTS opt-in is set to `1`.
 
 ## [2026.11.07.0008] - 2026-11-07
 

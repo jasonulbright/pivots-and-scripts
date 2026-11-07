@@ -69,7 +69,10 @@ Describe 'Window test files carry the guard' {
         $denied | Should -Match '\$script:AppConfig\s*='
         # Evaluate the literal lists: each placeholder list must hold at least one case.
         $ast = [System.Management.Automation.Language.Parser]::ParseInput($denied, [ref]$null, [ref]$null)
-        $table = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] -and @($n.KeyValuePairs | Where-Object { $_.Item1.Value -eq 'Views' }).Count -gt 0 }, $true)
+        # Tie the check to the assignment: take the hashtable on the right side of $script:AppConfig, not any table.
+        $assign = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$script:AppConfig' }, $true)
+        $assign | Should -Not -BeNullOrEmpty
+        $table = $assign.Right.Find({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] }, $true)
         $table | Should -Not -BeNullOrEmpty
         foreach ($key in 'Views', 'DialogFiles') {
             $pair = @($table.KeyValuePairs | Where-Object { $_.Item1.Value -eq $key })
