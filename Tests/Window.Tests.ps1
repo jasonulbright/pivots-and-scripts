@@ -203,6 +203,15 @@ Describe 'Dialog windows' {
         foreach ($t in $titles) { $t.Trim() | Should -Not -BeNullOrEmpty }
     }
 
+    It 'gives each message box a title that differs from the title of the dialog that owns it' {
+        # The owner dialog and its message box must not carry the same title, or the user sees two windows with one name.
+        foreach ($f in $script:AppConfig.DialogFiles) {
+            $text = Get-Content -LiteralPath (Join-Path $script:Root $f) -Raw -Encoding UTF8
+            $dialogTitles = @($script:DialogXaml.Keys | Where-Object { $_ -like "$f#*" } | ForEach-Object { if ($script:DialogXaml[$_] -match '\sTitle="([^"]*)"') { $Matches[1] } })
+            $messageTitles = @([regex]::Matches($text, "Show-(?:Themed|Confirm)\w*\s[^\r\n]*-Title\s+'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+            foreach ($m in $messageTitles) { $dialogTitles | Should -Not -Contain $m -Because "$f shows a message titled '$m' above a dialog with the same title" }
+        }
+    }
     It 'gives the dialogs in XAML different titles' {
         $titles = @($script:DialogXaml.Values | ForEach-Object { if ($_ -match '\sTitle="([^"]*)"') { $Matches[1] } } | Where-Object { $_ })
         ($titles | Select-Object -Unique).Count | Should -Be $titles.Count

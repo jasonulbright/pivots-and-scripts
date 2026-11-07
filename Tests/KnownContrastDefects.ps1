@@ -23,7 +23,7 @@ function Get-KnownContrastDefect {
                 'btnSave:DisabledText', 'btnSaveSession:DisabledText', 'btnScript:DisabledBorder',
                 'btnScript:DisabledText', 'btnScript:EnabledBorder', 'btnSelectionPivot:DisabledText',
                 'btnSelectionScript:DisabledText', 'btnSiteScripts:DisabledText', 'btnStop:DisabledText',
-                'btnSubmit:DisabledText', 'btnTargets:DisabledText', 'text:Results',
+                'btnSubmit:DisabledText', 'btnTargets:DisabledText',
                 'text:Stop waiting', 'titlebar:inactive'
             )
         }
@@ -44,7 +44,6 @@ function Get-KnownContrastDefect {
                 'resultFilter:EnabledBorder', 'scriptGuid:DisabledBorder', 'scriptGuid:EnabledBorder',
                 'targetInput:DisabledBorder', 'targetInput:EnabledBorder', 'targetKind:DisabledBorder',
                 'targetKind:DisabledText', 'targetKind:EnabledBorder', 'targetKind:EnabledText',
-                'text:Devices', 'text:Pipeline', 'text:Raw',
                 'text:Stop waiting', 'titlebar:inactive'
             )
         }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026.11.07.0007] - 2026-11-07
+
+## 2 fixes and a user guide with 58 images
+
+### Fixed
+
+- Show the result tab headers in the theme text color, bold when selected, at size 13.
+- Give the message boxes of Options and Site scripts a title that differs from their dialog.
+
+### Added
+
+- Add the user guide (docs/index.md) with images of the running window.
+- Add tools/guide-capture, one command that regenerates every image of the guide on a lab computer.
 ## [2026.11.06.0006] - 2026-11-06
 
 ## 19 defects fixed
