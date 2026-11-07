@@ -30,7 +30,7 @@ Window tests: `Window.Tests.ps1` and `Shell.Smoke.Tests.ps1` open a window only 
 | Windows | `Window.Tests.ps1` | Main window in both views (CMPivot and PowerShell): names, titles, no clipped text and nothing off screen at 1024x720 and 1440x900 in both themes, text and control contrast. The three dialogs: XAML, names, titles, layout |
 | Window start | `Shell.Smoke.Tests.ps1` | The real start script in `-SmokeTest` mode: themes, modes, the three dialogs, close |
 | Window guard | `WindowGuard.Tests.ps1` | The rule that lets window tests run (`Test-WindowTestsAllowed`): computer name and opt-in, with injected values. Every test file that opens a window uses the guard. Opens no window |
-| Lab | `Lab/Invoke-PasLab.ps1` | ZZTEST- scripts on CM01: create with parameters, read back, list, approve, deny, remove, a script run and a CMPivot run on CLIENT01, feature script guard, `-WhatIf`. Checks that no other script changed |
+| Lab | `Lab/Invoke-PasLab.ps1` | ZZTEST- scripts on the lab site server: create with parameters, read back, list, approve, deny, remove, a script run and a CMPivot run on a lab client, feature script guard, `-WhatIf`. Checks that no other script changed |
 
 ## Defects found and fixed
 
