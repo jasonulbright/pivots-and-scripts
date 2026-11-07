@@ -53,7 +53,9 @@ Describe 'Test-WindowTestsAllowed' {
 
 Describe 'Window test files' {
     It 'finds the window test files' {
-        $script:WindowTestCases.Count | Should -BeGreaterOrEqual 1
+        # Discovery variables do not exist in the run phase, so the file list is read again here.
+        $files = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.Tests.ps1' -File | Where-Object { $_.Name -ne 'WindowGuard.Tests.ps1' -and (Get-Content -LiteralPath $_.FullName -Raw) -match 'Invoke-WpfSta|WindowHarness' })
+        $files.Count | Should -BeGreaterOrEqual 1
     }
 
     It '<Name> uses the guard' -ForEach $script:WindowTestCases {
