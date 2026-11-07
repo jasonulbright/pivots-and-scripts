@@ -34,17 +34,17 @@ function Show-PasOptionsDialog {
     $connection = [Windows.Controls.StackPanel]::new()
     [void]$connection.Children.Add((New-PasOptionsText 'Configuration Manager Connection' 18 'SemiBold' '0,0,0,12'))
     [void]$connection.Children.Add((New-PasOptionsText 'Site code:' 12 'Normal' '0,4,0,2'))
-    $txtSite = [Windows.Controls.TextBox]::new(); $txtSite.Text = $script:prefs.SiteCode; $txtSite.MaxLength = 3; $txtSite.Width = 80; $txtSite.HorizontalAlignment = 'Left'; $txtSite.Height = 28
+    $txtSite = [Windows.Controls.TextBox]::new(); $txtSite.Text = $script:prefs.SiteCode; $txtSite.MaxLength = 3; $txtSite.Width = 80; $txtSite.HorizontalAlignment = 'Left'; $txtSite.Height = 28; [Windows.Automation.AutomationProperties]::SetAutomationId($txtSite, 'txtSiteCode')
     [void]$connection.Children.Add($txtSite)
     [void]$connection.Children.Add((New-PasOptionsText 'SMS Provider:' 12 'Normal' '0,10,0,2'))
-    $txtProvider = [Windows.Controls.TextBox]::new(); $txtProvider.Text = $script:prefs.SMSProvider; $txtProvider.Height = 28
+    $txtProvider = [Windows.Controls.TextBox]::new(); $txtProvider.Text = $script:prefs.SMSProvider; $txtProvider.Height = 28; [Windows.Automation.AutomationProperties]::SetAutomationId($txtProvider, 'txtSmsProvider')
     [MahApps.Metro.Controls.TextBoxHelper]::SetWatermark($txtProvider, 'server.fqdn')
     [void]$connection.Children.Add($txtProvider)
     [void]$connection.Children.Add((New-PasOptionsText 'A value saved here wins. The suite launcher fills an empty value. Enter the provider name that its certificate carries, normally the FQDN. Resolve targets again after a change.' 11 'Normal' '0,10,0,0' -Muted))
 
     $scripts = [Windows.Controls.StackPanel]::new()
     [void]$scripts.Children.Add((New-PasOptionsText 'Run Scripts' 18 'SemiBold' '0,0,0,12'))
-    $chkApprove = [Windows.Controls.CheckBox]::new(); $chkApprove.Content = 'Approve scripts after submission'; $chkApprove.IsChecked = [bool]$script:prefs.ApproveAfterSubmit
+    $chkApprove = [Windows.Controls.CheckBox]::new(); $chkApprove.Content = 'Approve scripts after submission'; $chkApprove.IsChecked = [bool]$script:prefs.ApproveAfterSubmit; [Windows.Automation.AutomationProperties]::SetAutomationId($chkApprove, 'chkApproveAfterSubmit')
     [void]$scripts.Children.Add($chkApprove)
     [void]$scripts.Children.Add((New-PasOptionsText 'Configuration Manager decides. By default, the site requires a second approver, and the author cannot approve. Microsoft recommends allowing authors to approve their own scripts only in a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.' 11 'Normal' '0,10,0,0' -Muted))
 
@@ -75,7 +75,7 @@ function Show-PasOptionsDialog {
             Update-PasConnectionInfo
             if ($changed) { $ui.targetSummary.Text = 'Connection changed. Resolve targets again.'; $ui.status.Text = 'Options saved. Select Test connection to check the new connection.' } else { $ui.status.Text = 'Options saved.' }
             $dialog.DialogResult = $true
-        } catch { [void](Show-ThemedMessage -Owner $dialog -Title 'Options' -Message $_.Exception.Message) }
+        } catch { [void](Show-ThemedMessage -Owner $dialog -Title 'Options error' -Message $_.Exception.Message) }
     })
     $dialog.FindName('btnCancel').Add_Click({ $dialog.Close() })
     if ($SmokeTest) {
