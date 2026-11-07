@@ -2,11 +2,12 @@
 
 ## [2026.11.07.0009] - 2026-11-07
 
-## 2 placeholder lists that the window test guard now checks for content
+## 1 opt-in variable that decides whether the window tests run
 
 ### Changed
 
 - Check that both placeholder lists hold at least one case.
+- Run window tests only when the SUITE_ALLOW_WINDOW_TESTS opt-in is set.
 
 ## [2026.11.07.0008] - 2026-11-07
 
