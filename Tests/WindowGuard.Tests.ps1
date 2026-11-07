@@ -61,6 +61,21 @@ Describe 'Test-WindowTestsAllowed' {
     }
 }
 
+Describe 'Test-WindowTestsAllowed decides on the opt-in only' {
+    It 'has no ComputerName parameter' {
+        (Get-Command Test-WindowTestsAllowed).Parameters.Keys | Should -Not -Contain 'ComputerName'
+    }
+
+    It 'has an OptIn parameter' {
+        (Get-Command Test-WindowTestsAllowed).Parameters.Keys | Should -Contain 'OptIn'
+    }
+
+    It 'does not read the machine name' {
+        $text = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WindowHarness.ps1') -Raw
+        $text | Should -Not -Match 'MachineName|COMPUTERNAME|ComputerName'
+    }
+}
+
 Describe 'Window test files carry the guard' {
     It 'finds at least one test file that can open a window' -ForEach @(@{ Found = @($script:WindowTestFiles).Count }) {
         $Found | Should -BeGreaterThan 0
