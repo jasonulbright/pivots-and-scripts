@@ -6,6 +6,30 @@
 # start script to switch them.
 
 BeforeDiscovery {
+    # The guard decides before any runspace or window exists. A skipped run says why, once.
+    . "$PSScriptRoot\WindowHarness.ps1"
+    $script:WindowGuard = Test-WindowTestsAllowed
+    if (-not $script:WindowGuard.Allowed -and -not $env:SUITE_WINDOW_GUARD_REPORTED) { Write-Host ("Window tests skipped: {0}." -f $script:WindowGuard.Reason) }
+    if (-not $script:WindowGuard.Allowed) {
+        # Denied: evaluate nothing derived from the shell script. One placeholder case per list keeps the
+        # skipped Describe blocks visible as Skipped, and an empty case list never reaches Pester.
+        $script:Matrix = @(@{ Dark = $true; Theme = 'skipped'; W = 0; H = 0; Size = 'skipped' })
+        $script:ViewCases = @(@{ View = 'skipped' })
+        $script:NameCases = @(@{ Name = 'skipped' })
+        $script:DialogCases = @(@{ File = 'skipped'; Index = 0; Key = 'skipped' })
+        # Describe blocks read $script:AppConfig during discovery (-ForEach lists). Pester 6 fails a null or empty list,
+        # so a placeholder with the same shape as the real application configuration stands in. The values are not used: every Describe is skipped.
+        $script:AppConfig = @{
+            Title          = 'skipped'
+            Shell          = 'skipped'
+            Xaml           = 'skipped'
+            OptionsButtons = @('skipped')
+            ModeFunctions  = @('skipped')
+            DialogFiles    = @('skipped')
+            Views          = @(@{ Name = 'skipped'; Mode = 'skipped'; Button = 'skipped'; Heading = 'skipped' })
+        }
+        return
+    }
     . "$PSScriptRoot\WindowConfig.ps1"
     $script:Matrix = foreach ($dark in $true, $false) {
         foreach ($size in @(@(1024, 720), @(1440, 900))) {
@@ -30,8 +54,10 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    . "$PSScriptRoot\TestHelpers.ps1"
     . "$PSScriptRoot\WindowHarness.ps1"
+    # No runspace and no window unless the guard allows it. AfterAll tolerates "no session".
+    if (-not (Test-WindowTestsAllowed).Allowed) { return }
+    . "$PSScriptRoot\TestHelpers.ps1"
     . "$PSScriptRoot\KnownContrastDefects.ps1"
     . "$PSScriptRoot\WindowConfig.ps1"
     $script:Root = Split-Path -Parent $PSScriptRoot
@@ -107,9 +133,9 @@ BeforeAll {
     }
 }
 
-AfterAll { Close-WpfSession }
+AfterAll { if (Get-Command Close-WpfSession -ErrorAction SilentlyContinue) { Close-WpfSession } }
 
-Describe 'Main window XAML' {
+Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'loads as a MetroWindow with the app title and a minimum size that fits 1024x720' {
         $r = Invoke-WpfSta -Arguments @{ Xaml = $script:AppConfig.Xaml } -Script {
             $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
@@ -169,7 +195,7 @@ Describe 'Main window XAML' {
     }
 }
 
-Describe 'Result tab headers' {
+Describe 'Result tab headers' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'gives each of the four result tabs a header with the TabHeaderText style' {
         $xaml = Get-Content -LiteralPath $script:XamlPath -Raw -Encoding UTF8
         $names = @([regex]::Matches($xaml, '<TabItem><TabItem\.Header><TextBlock Text="([^"]+)" Style="\{StaticResource TabHeaderText\}"') | ForEach-Object { $_.Groups[1].Value })
@@ -187,7 +213,8 @@ Describe 'Result tab headers' {
         $xaml | Should -Match 'x:Name="resultTabs" Controls:HeaderedControlHelper\.HeaderFontSize="13"'
     }
 }
-Describe 'Dialog windows' {
+
+Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'finds the dialog XAML in the dialog files' {
         $script:DialogXaml.Count | Should -Be 3
     }
@@ -262,7 +289,7 @@ Describe 'Dialog windows' {
     }
 }
 
-Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix {
+Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix -Skip:(-not $script:WindowGuard.Allowed) {
     It 'has no clipped text in the <View> view' -ForEach $script:ViewCases {
         $m = ($script:Measured['{0}|{1}' -f $Theme, $Size] | Where-Object View -eq $View)
         $m.Clipped | ForEach-Object { '{0}: needs {1}px, has {2}px' -f $_.Text, $_.Needed, $_.Actual } | Should -BeNullOrEmpty
@@ -274,7 +301,7 @@ Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix {
     }
 }
 
-Describe 'Contrast measurement' {
+Describe 'Contrast measurement' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'measures a text block on its own solid background, not on the parent' {
         $xaml = '<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Probe" Width="300" Height="200"><StackPanel Background="#101010"><TextBlock x:Name="same" Text="White on white" Foreground="#FFFFFF" Background="#FFFFFF"/><TextBlock x:Name="plain" Text="White on dark" Foreground="#FFFFFF"/></StackPanel></Controls:MetroWindow>'
         $r = Invoke-WpfSta -Arguments @{ Xaml = $xaml } -Script {
@@ -297,7 +324,7 @@ Describe 'Contrast measurement' {
     }
 }
 
-Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) {
+Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) -Skip:(-not $script:WindowGuard.Allowed) {
     It 'shows every text at 4.5:1 (3:1 for large text) in the <View> view, except the listed known defects' -ForEach $script:ViewCases {
         $m = ($script:Measured['{0}|1440x900' -f $Theme] | Where-Object View -eq $View)
         $m.Text.Count | Should -BeGreaterThan 3
