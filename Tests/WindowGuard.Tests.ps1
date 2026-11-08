@@ -72,12 +72,19 @@ Describe 'Window test files carry the guard' {
         # Tie the check to the assignment: take the hashtable on the right side of $script:AppConfig, not any table.
         $assign = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$script:AppConfig' }, $true)
         $assign | Should -Not -BeNullOrEmpty
-        $table = $assign.Right.Find({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] }, $true)
-        $table | Should -Not -BeNullOrEmpty
+        # The right side must itself be a literal hashtable (one expression), not a conditional that holds one.
+        $right = $assign.Right
+        $right | Should -BeOfType ([System.Management.Automation.Language.PipelineAst])
+        @($right.PipelineElements).Count | Should -Be 1
+        $right.PipelineElements[0] | Should -BeOfType ([System.Management.Automation.Language.CommandExpressionAst])
+        $table = $right.PipelineElements[0].Expression
+        $table | Should -BeOfType ([System.Management.Automation.Language.HashtableAst])
         foreach ($key in 'Views', 'DialogFiles') {
             $pair = @($table.KeyValuePairs | Where-Object { $_.Item1.Value -eq $key })
             $pair.Count | Should -Be 1
-            @($pair[0].Item2.SafeGetValue()).Count | Should -BeGreaterThan 0
+            $value = $pair[0].Item2.SafeGetValue()
+            $value | Should -Not -BeNullOrEmpty
+            @($value).Count | Should -BeGreaterThan 0
         }
         $denied | Should -Not -Match 'WindowConfig'
     }
