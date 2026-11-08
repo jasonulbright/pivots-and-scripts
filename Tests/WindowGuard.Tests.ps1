@@ -74,10 +74,8 @@ Describe 'Window test files carry the guard' {
         $assign | Should -Not -BeNullOrEmpty
         # The right side must itself be a literal hashtable (one expression), not a conditional that holds one.
         $right = $assign.Right
-        $right | Should -BeOfType ([System.Management.Automation.Language.PipelineAst])
-        @($right.PipelineElements).Count | Should -Be 1
-        $right.PipelineElements[0] | Should -BeOfType ([System.Management.Automation.Language.CommandExpressionAst])
-        $table = $right.PipelineElements[0].Expression
+        $right | Should -BeOfType ([System.Management.Automation.Language.CommandExpressionAst])
+        $table = $right.Expression
         $table | Should -BeOfType ([System.Management.Automation.Language.HashtableAst])
         foreach ($key in 'Views', 'DialogFiles') {
             $pair = @($table.KeyValuePairs | Where-Object { $_.Item1.Value -eq $key })
