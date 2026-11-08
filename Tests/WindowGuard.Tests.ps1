@@ -1,8 +1,7 @@
 #Requires -Modules Pester
 # Tests of the window-test guard (Test-WindowTestsAllowed in WindowHarness.ps1).
-# The guard keeps window tests off the dev PC (removed) and runs them only when
-# SUITE_ALLOW_WINDOW_TESTS is 1. This file injects the computer name and the
-# opt-in value, so it never reads the real environment and never opens a window.
+# The guard runs window tests only when SUITE_ALLOW_WINDOW_TESTS is 1. This file injects
+# the opt-in value, so it never reads the real environment and never opens a window.
 
 BeforeDiscovery {
     # Every other test file that can open a window must carry the guard.
@@ -16,48 +15,40 @@ BeforeDiscovery {
 
 BeforeAll {
     . "$PSScriptRoot\WindowHarness.ps1"
-    # Pass the computer name as a variable, so the linter rule against a hard-coded ComputerName stays quiet.
-    function Get-Guard { param([string]$Computer, $Value) Test-WindowTestsAllowed -ComputerName $Computer -OptIn $Value }
 }
 
 Describe 'Test-WindowTestsAllowed' {
-    It 'refuses on removed even with the opt-in' {
-        $r = Get-Guard 'removed' '1'
-        $r.Allowed | Should -BeFalse
-        $r.Reason | Should -Match 'removed'
-    }
-
-    It 'refuses on removed in lower case' {
-        (Get-Guard 'removed' '1').Allowed | Should -BeFalse
-    }
-
-    It 'refuses on removed without the opt-in' {
-        (Get-Guard 'removed' '').Allowed | Should -BeFalse
-    }
-
-    It 'allows another computer with the opt-in 1' {
-        $r = Get-Guard 'CM01' '1'
+    It 'allows the opt-in 1' {
+        $r = Test-WindowTestsAllowed -OptIn '1'
         $r.Allowed | Should -BeTrue
         $r.Reason | Should -BeNullOrEmpty
     }
 
-    It 'refuses another computer when the opt-in is <Label>, and names the opt-in' -ForEach @(
+    It 'refuses when the opt-in is <Label>, and names the opt-in' -ForEach @(
         @{ Label = 'empty'; Value = '' }
         @{ Label = 'null'; Value = $null }
         @{ Label = '0'; Value = '0' }
         @{ Label = 'true'; Value = 'true' }
+        @{ Label = '11'; Value = '11' }
     ) {
-        $r = Get-Guard 'CLIENT01' $Value
+        $r = Test-WindowTestsAllowed -OptIn $Value
         $r.Allowed | Should -BeFalse
-        $r.Reason | Should -Match 'SUITE_ALLOW_WINDOW_TESTS'
+        $r.Reason | Should -Be 'SUITE_ALLOW_WINDOW_TESTS is not 1'
+    }
+}
+
+Describe 'Test-WindowTestsAllowed decides on the opt-in only' {
+    It 'has no ComputerName parameter' {
+        (Get-Command Test-WindowTestsAllowed).Parameters.Keys | Should -Not -Contain 'ComputerName'
     }
 
-    It 'gives a reason whenever it refuses (<Name>, opt-in "<Value>")' -ForEach @(
-        @{ Name = 'removed'; Value = '1' }
-        @{ Name = 'CM01'; Value = '' }
-        @{ Name = 'CM01'; Value = '0' }
-    ) {
-        (Get-Guard $Name $Value).Reason | Should -Not -BeNullOrEmpty
+    It 'has an OptIn parameter' {
+        (Get-Command Test-WindowTestsAllowed).Parameters.Keys | Should -Contain 'OptIn'
+    }
+
+    It 'does not read the machine name' {
+        $text = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WindowHarness.ps1') -Raw
+        $text | Should -Not -Match 'MachineName|COMPUTERNAME|ComputerName'
     }
 }
 
@@ -76,8 +67,23 @@ Describe 'Window test files carry the guard' {
         $text -match '(?s)if \(-not \$script:WindowGuard\.Allowed\) \{(?<denied>.*?)\r?\n\s*return\b' | Should -BeTrue
         $denied = $Matches['denied']
         $denied | Should -Match '\$script:AppConfig\s*='
-        $denied | Should -Match 'Views\s*='
-        $denied | Should -Match 'DialogFiles\s*='
+        # Evaluate the literal lists: each placeholder list must hold at least one case.
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($denied, [ref]$null, [ref]$null)
+        # Tie the check to the assignment: take the hashtable on the right side of $script:AppConfig, not any table.
+        $assign = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$script:AppConfig' }, $true)
+        $assign | Should -Not -BeNullOrEmpty
+        # The right side must itself be a literal hashtable (one expression), not a conditional that holds one.
+        $right = $assign.Right
+        $right | Should -BeOfType ([System.Management.Automation.Language.CommandExpressionAst])
+        $table = $right.Expression
+        $table | Should -BeOfType ([System.Management.Automation.Language.HashtableAst])
+        foreach ($key in 'Views', 'DialogFiles') {
+            $pair = @($table.KeyValuePairs | Where-Object { $_.Item1.Value -eq $key })
+            $pair.Count | Should -Be 1
+            $value = $pair[0].Item2.SafeGetValue()
+            $value | Should -Not -BeNullOrEmpty
+            @($value).Count | Should -BeGreaterThan 0
+        }
         $denied | Should -Not -Match 'WindowConfig'
     }
 
@@ -109,14 +115,5 @@ Describe 'Get-WpfSession refuses where the guard says no' {
     It 'does not hand out a cached session' {
         $script:HarnessSession = [pscustomobject]@{ RunspaceStateInfo = [pscustomobject]@{ State = 'Opened' } }
         { Get-WpfSession } | Should -Throw '*not allowed*'
-    }
-}
-
-Describe 'Machine identity' {
-    It 'takes the computer name from the machine, not from the COMPUTERNAME variable' {
-        foreach ($f in 'WindowHarness.ps1', '..\Invoke-Checks.ps1') {
-            (Get-Content -LiteralPath (Join-Path $PSScriptRoot $f) -Raw) | Should -Not -Match '\$env:COMPUTERNAME'
-        }
-        (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WindowHarness.ps1') -Raw) | Should -Match 'MachineName'
     }
 }

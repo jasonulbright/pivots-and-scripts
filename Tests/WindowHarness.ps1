@@ -10,16 +10,14 @@
 # next theme change waits on their dead dispatchers. Call Close-WpfSession in
 # AfterAll.
 
-# Window tests open a window only when SUITE_ALLOW_WINDOW_TESTS is 1, and never on the dev PC (removed).
+# Window tests open a window only when SUITE_ALLOW_WINDOW_TESTS is 1.
 # Every window test file calls this in BeforeDiscovery and skips its Describe blocks when Allowed is false.
 function Test-WindowTestsAllowed {
     [CmdletBinding()]
     param(
-        [string]$ComputerName = [Environment]::MachineName,
         [string]$OptIn = $env:SUITE_ALLOW_WINDOW_TESTS
     )
-    if ($ComputerName -ieq 'removed') { return [pscustomobject]@{ Allowed = $false; Reason = 'dev PC (removed): window tests never run here' } }
-    if ($OptIn -ne '1')           { return [pscustomobject]@{ Allowed = $false; Reason = 'SUITE_ALLOW_WINDOW_TESTS is not 1' } }
+    if ($OptIn -ne '1') { return [pscustomobject]@{ Allowed = $false; Reason = 'SUITE_ALLOW_WINDOW_TESTS is not 1' } }
     [pscustomobject]@{ Allowed = $true; Reason = '' }
 }
 
@@ -89,7 +87,7 @@ $script:HarnessBootstrap = {
     # Representative text in the boxes that are empty at start-up, so the contrast of entered text is measured too.
     function Set-TestFixtureText {
         param($Window)
-        $values = @{ targetInput = 'CLIENT01, CLIENT02'; scriptGuid = '685E0A08-8ACE-4948-BE8F-9D0416852976'; resultFilter = 'disk'; findText = 'Disk'; replaceText = 'OS' }
+        $values = @{ targetInput = 'PC01, PC02'; scriptGuid = '685E0A08-8ACE-4948-BE8F-9D0416852976'; resultFilter = 'disk'; findText = 'Disk'; replaceText = 'OS' }
         foreach ($name in $values.Keys) { $box = $Window.FindName($name); if ($box) { $box.Text = $values[$name] } }
     }
 

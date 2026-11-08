@@ -20,8 +20,8 @@
 
 .PARAMETER SkipWindow
     Leave out the window tests (Tests\Window.Tests.ps1 and Tests\Shell.Smoke.Tests.ps1), which open
-    windows and need a desktop. They are also left out, with one line of explanation, on the dev PC
-    (removed) and whenever SUITE_ALLOW_WINDOW_TESTS is not 1. CI sets it to 1. Tests\WindowGuard.Tests.ps1
+    windows and need a desktop. They are also left out, with one line of explanation,
+    whenever SUITE_ALLOW_WINDOW_TESTS is not 1. CI sets it to 1. Tests\WindowGuard.Tests.ps1
     holds the rule.
 
 .PARAMETER SkipLint
@@ -81,8 +81,7 @@ $windowTestsRun = $windowGuard.Allowed -and -not $SkipWindow
 $windowSkipReported = $false
 if (-not $windowGuard.Allowed) {
     $windowSkipReported = $true
-    if ($windowGuard.Reason -like 'dev PC*') { Write-Host 'Window tests skipped: dev PC (removed). Run them on CM01/CLIENT01 or in CI.' }
-    else { Write-Host 'Window tests skipped: SUITE_ALLOW_WINDOW_TESTS is not 1.' }
+    Write-Host 'Window tests skipped: SUITE_ALLOW_WINDOW_TESTS is not 1.'
 }
 if (-not $windowTestsRun) { $testFiles = @($testFiles | Where-Object { $windowTestFiles -notcontains $_.Name }) }
 $cfg.Run.Path = $testFiles.FullName

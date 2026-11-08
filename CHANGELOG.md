@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026.11.07.0009] - 2026-11-07
+
+## 1 opt-in variable that decides whether the window tests run
+
+### Changed
+
+- Check that both placeholder lists hold at least one case.
+- Run window tests only when the SUITE_ALLOW_WINDOW_TESTS opt-in is set to `1`.
+
 ## [2026.11.07.0008] - 2026-11-07
 
 ## 1 shared library refresh and window tests that cannot steal focus
