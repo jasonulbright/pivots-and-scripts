@@ -1,19 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [2026.11.12.0010] - 2026-11-12
+
+## 1 shared button style for every button, with readable text in every state
 
 ### Fixed
 
-- Show white text on every blue box in the light theme, in the buttons, the selected rows and the selected items.
-- Show the Site Code and SMS Provider titles in bold 14 pt in both themes. The values keep the normal style.
-- Use one shared button style and one dialog button style. The hover and pressed states keep the text readable. The disabled state of the four sidebar buttons stays as SuiteCommon paints it (an accepted limit of the shared library).
-- Show a fixed sentence for an error that the tool did not write itself. The log file holds the detail.
+- Show white text on blue buttons, selected rows and selected items in light mode.
+- Show field titles in bold 14 pt. Field values keep the normal style.
+- Keep the button text readable on hover and when pressed.
+- Show selected states in the theme highlight color.
+- Raise the dark mode button border to a contrast of 3:1.
+- Show a fixed sentence instead of raw error text. Keep the AdminService HTTP status.
 
 ### Changed
 
+- Use one shared themed style for every button and every dialog button.
 - Write button, dialog and heading titles in Title Case.
 - Write a log file for each day in the Logs folder of the data folder.
 - Add a Cancel button to the Script Parameters dialog.
+- Retake the guide images.
+
+### Added
+
+- Add tests that guard the button styles, the contrast pairs and the error sentences.
 
 ## [2026.11.07.0009] - 2026-11-07
 
