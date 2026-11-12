@@ -45,6 +45,10 @@ function Get-PasUserErrorText {
         $ex.GetType().FullName -eq 'System.Management.Automation.RuntimeException' -and $null -eq $ex.InnerException) {
         return [string]$ex.Message
     }
+    # An AdminService failure that Invoke-PasAdminService raised: the message is fixed text with the HTTP status, and the site text is in the log file.
+    if ($null -ne $ex -and $ex -is [InvalidOperationException] -and $ex.Data.Contains('StatusCode') -and $ex.Message -match '^AdminService returned HTTP \d{3}\. The log file has the details\.$') {
+        return [string]$ex.Message
+    }
     if ($LogDetail -and $null -ne $ex) { Write-PasLog ('Error detail kept out of the window: {0} ({1})' -f $ex.Message, $ex.GetType().FullName) }
     $Fallback
 }

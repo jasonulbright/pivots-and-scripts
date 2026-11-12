@@ -6,7 +6,7 @@
 
 - Show white text on every blue box in the light theme, in the buttons, the selected rows and the selected items.
 - Show the Site Code and SMS Provider titles in bold 14 pt in both themes. The values keep the normal style.
-- Use one shared button style and one dialog button style. The hover, pressed and disabled states keep the text readable.
+- Use one shared button style and one dialog button style. The hover and pressed states keep the text readable. The disabled state of the four sidebar buttons stays as SuiteCommon paints it (an accepted limit of the shared library).
 - Show a fixed sentence for an error that the tool did not write itself. The log file holds the detail.
 
 ### Changed

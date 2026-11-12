@@ -21,7 +21,7 @@ None. A session needs at least one run to hold data.
 1. Select **Save Session**.
 2. In the Save As dialog, pick a folder and a name, and select **Save**.
 
-![The Save As dialog of Save session](../images/dialog-save-session.png)
+![The Save As dialog of Save Session](../images/dialog-save-session.png)
 
 ![The window after the save](../images/session-saved.png)
 
@@ -29,18 +29,18 @@ None. A session needs at least one run to hold data.
 
 Select **New Session**. The tool saves the current session, clears the results and starts an empty session.
 
-![The window after New session](../images/session-new.png)
+![The window after New Session](../images/session-new.png)
 
 ### Open an earlier session
 
 1. Select **Open Session** in the sidebar.
 2. Pick a session file and select **Open**.
 
-![The Open dialog of Open session](../images/dialog-open-session.png)
+![The Open dialog of Open Session](../images/dialog-open-session.png)
 
 The tool shows the last step of the session: the mode, the text, the results, the device states and the raw records. The line under the target box says `Historical session opened. Resolve fresh targets before running.`
 
-![The window after Open session](../images/session-opened.png)
+![The window after Open Session](../images/session-opened.png)
 
 **Open Session** does not run anything again.
 

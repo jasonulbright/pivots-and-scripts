@@ -45,7 +45,7 @@ A name that does not exist in Configuration Manager counts as **Unknown**. The u
 
 Select **View Snapshot**. The tool opens the **Devices** tab.
 
-![The Devices tab after View snapshot](../images/targets-snapshot.png)
+![The Devices tab after View Snapshot](../images/targets-snapshot.png)
 
 ### Import a list
 
@@ -53,7 +53,7 @@ Select **View Snapshot**. The tool opens the **Devices** tab.
 2. Select **Import List**.
 3. Pick a TXT file with one device name on each line, or a CSV file with a `Device` column.
 
-![The Open dialog of Import list](../images/dialog-import-list.png)
+![The Open dialog of Import List](../images/dialog-import-list.png)
 
 The names fill the target box.
 

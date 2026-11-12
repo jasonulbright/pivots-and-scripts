@@ -29,14 +29,14 @@ function Get-PasSiteScript { param($SMSProvider,$SiteCode,$ScriptGuid)
 function Start-PasPivotRun { [CmdletBinding(SupportsShouldProcess)] param($SMSProvider,$Query,$CollectionId,$ResourceIds)
     Write-PasCall ("pivot|$CollectionId|" + (@($ResourceIds) -join ','))
     $s = Get-PasScn
-    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
+    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartStatus']) { $e = [InvalidOperationException]::new(('AdminService returned HTTP {0}. The log file has the details.' -f $s['StartStatus'])); $e.Data['StatusCode'] = [int]$s['StartStatus']; throw $e }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
     if ($s['StartNone']) { return }
     [pscustomobject]@{OperationID=$(if ($s['StartNullId']) { $null } else { 900 });Raw=[pscustomobject]@{OperationId=900}}
 }
 function Start-PasScriptRun { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Arguments,$CollectionId,$ResourceIds)
     Write-PasCall ("script|$CollectionId|" + (@($ResourceIds) -join ',') + '|' + ((@($Arguments.Keys | Sort-Object) | ForEach-Object { "$_=$($Arguments[$_]):$($Arguments[$_].GetType().Name)" }) -join ';'))
     $s = Get-PasScn
-    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
+    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartStatus']) { $e = [InvalidOperationException]::new(('AdminService returned HTTP {0}. The log file has the details.' -f $s['StartStatus'])); $e.Data['StatusCode'] = [int]$s['StartStatus']; throw $e }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
     if ($s['StartNone']) { return }
     [pscustomobject]@{OperationID=$(if ($s['StartNullId']) { $null } else { 901 });ReturnValue=0}
 }
@@ -307,10 +307,10 @@ Describe 'Worker run' {
         $final['13'].State | Should -Be 'Not a client'
     }
     It 'reports a submission error on every device and polls nothing' {
-        $events = Invoke-Worker (New-Request) -Scenario @{ StartThrow = 'AdminService returned HTTP 403 (Forbidden).' }
+        $events = Invoke-Worker (New-Request) -Scenario @{ StartStatus = 403 }
         $final = Get-FinalState $events
         $final['11'].State | Should -Be 'Submission error'
-        $final['11'].Detail | Should -BeLike '*HTTP 403*'
+        $final['11'].Detail | Should -Be 'AdminService returned HTTP 403. The log file has the details.'
         $final['12'].State | Should -Be 'Submission error'
         @(Get-Calls | Where-Object { $_ -eq 'poll' }).Count | Should -Be 0
     }
@@ -379,21 +379,20 @@ Describe 'Worker run' {
         (Get-FinalState $events)['11'].State | Should -Be 'Response received'
     }
     It 'treats a 404 from the status page as no result yet' {
-        $events = Invoke-Worker (New-Request) -Scenario @{ PollThrow = 'AdminService returned HTTP 404 (Not Found).'; PollStatus = 404 }
+        $events = Invoke-Worker (New-Request) -Scenario @{ PollThrow = 'AdminService returned HTTP 404. The log file has the details.'; PollStatus = 404 }
         (Get-FinalState $events)['11'].State | Should -Be 'No response within timeout'
     }
     It 'reports the last polling error on the devices that got no result' {
         $log = Join-Path $TestDrive 'poll.log'
-        $events = Invoke-Worker (New-Request -Extra @{ LogPath = $log }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500 (Server Error).'; PollStatus = 500 }
+        $events = Invoke-Worker (New-Request -Extra @{ LogPath = $log }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500. The log file has the details.'; PollStatus = 500 }
         $d = (Get-FinalState $events)['11']
         $d.State | Should -Be 'Result error'
-        $d.Detail | Should -Be 'The result could not be requested from the site. The log file has the details.'
-        (Get-Content -LiteralPath $log -Raw) | Should -Match 'HTTP 500'
+        $d.Detail | Should -Be 'AdminService returned HTTP 500. The log file has the details.'
     }
     It 'forgets a polling error after a poll that works' {
         $row = @{ ResourceId = 11; DeviceName = 'PC-11'; ScriptExecutionState = 1; ScriptExitCode = 0; ErrorMessage = ''; ScriptOutput = $script:PivotOk }
         # The first poll fails, the second works and finds device 11, a third finds nothing more and the timeout ends the wait.
-        $events = Invoke-Worker (New-Request -Extra @{ TimeoutSeconds = 4 }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500 (Server Error).'; PollStatus = 500; PollThrowCount = 1; Rows = @($row) }
+        $events = Invoke-Worker (New-Request -Extra @{ TimeoutSeconds = 4 }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500. The log file has the details.'; PollStatus = 500; PollThrowCount = 1; Rows = @($row) }
         @(Get-Calls | Where-Object { $_ -eq 'poll' }).Count | Should -BeGreaterThan 2
         $final = Get-FinalState $events
         $final['11'].State | Should -Be 'Response received'

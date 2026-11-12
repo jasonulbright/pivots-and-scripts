@@ -94,8 +94,7 @@ try {
         $deadline = (Get-Date).AddMinutes($waitMinutes)
         while ($true) {
             try {
-                $null = New-Item -ItemType File -Path $path -ErrorAction Stop
-                Set-Content -LiteralPath $path -Value $token
+                $null = New-Item -ItemType File -Path $path -Value $token -ErrorAction Stop
                 return $true
             }
             catch [System.IO.IOException] {
@@ -120,7 +119,7 @@ try {
                                 Move-Item -LiteralPath $stale -Destination $path -ErrorAction Stop
                             }
                         }
-                        catch { $null = $_ }
+                        catch { Remove-Item -LiteralPath $stale -Force -ErrorAction SilentlyContinue }
                     }
                     if (-not (Test-Path -LiteralPath $path)) { continue }
                 }
@@ -162,7 +161,9 @@ try {
             # The poll also touches the lock, so that a long capture is never taken for a stale one.
             $state = Invoke-Command $session {
                 param($r, $path, $task)
-                (Get-Item -LiteralPath $path -ErrorAction SilentlyContinue).LastWriteTime = Get-Date
+                $lockItem = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
+                if (-not $lockItem) { throw 'capture lock lost' }
+                $lockItem.LastWriteTime = Get-Date
                 [pscustomobject]@{ Done = (Test-Path (Join-Path $r 'ui\out\finished.flag')); Task = (Get-ScheduledTask $task -ErrorAction SilentlyContinue).State; Result = (Get-ScheduledTaskInfo $task -ErrorAction SilentlyContinue).LastTaskResult }
             } -ArgumentList $root, $lockPath, $taskName
             $done = $state.Done
@@ -211,7 +212,7 @@ finally {
     # Each cleanup runs on its own, so that a failed cleanup cannot replace the original error.
     # Order: stop the task, stop the powershell.exe processes of this folder, remove the task, remove the folder,
     # release the lock, close the session. Nothing then writes into the folder or the lock after its removal.
-    if ($session) {
+    if ($session -and $haveLock) {
         try { Invoke-Command $session { param($t) Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Stopping the scheduled task failed: $($_.Exception.Message)" }
         try { Invoke-Command $session { param($r) Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like "*$r\*" -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2 } -ArgumentList $root } catch { Write-Warning "Stopping the capture processes failed: $($_.Exception.Message)" }
         try { Invoke-Command $session { param($t) Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Cleanup of the scheduled task failed: $($_.Exception.Message)" }
@@ -224,5 +225,6 @@ finally {
         } catch { Write-Warning "Removing the capture lock failed: $($_.Exception.Message)" }
         try { Remove-PSSession $session } catch { Write-Warning "Closing the session failed: $($_.Exception.Message)" }
     }
+    elseif ($session) { try { Remove-PSSession $session } catch { Write-Warning "Closing the session failed: $($_.Exception.Message)" } }
     if ($ok) { try { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Warning "Cleanup of $tmp failed: $($_.Exception.Message)" } } else { Write-Warning "The captured files stay in $tmp for inspection." }
 }

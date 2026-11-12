@@ -99,7 +99,11 @@ Describe 'Capture scripts' {
         $script:InvokeText | Should -Match '-ArgumentList \$lockPath, \$lockToken, 60, \$LockWaitMinutes'
         $script:InvokeText | Should -Match 'TotalMinutes -gt \$staleMinutes'
         $script:InvokeText | Should -Match '\[int\]\$LockWaitMinutes = 90'
-        $script:InvokeText | Should -Match 'Set-Content -LiteralPath \$path -Value \$token'
+        $script:InvokeText | Should -Match 'New-Item -ItemType File -Path \$path -Value \$token -ErrorAction Stop'
+        $script:InvokeText | Should -Not -Match 'Set-Content -LiteralPath \$path'
+        $script:InvokeText | Should -Match "throw 'capture lock lost'"
+        $script:InvokeText | Should -Match 'if \(\$session -and \$haveLock\)'
+        $script:InvokeText | Should -Match 'catch \{ Remove-Item -LiteralPath \$stale -Force -ErrorAction SilentlyContinue \}'
     }
 
     It 'works in its own folder and its own task, removes only its own files and the lock, and never removes C:\guide' {

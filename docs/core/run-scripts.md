@@ -30,7 +30,7 @@ Use it for an action or a check that CMPivot cannot do, with a script that your 
 
 3. Select **Check Syntax**. The status line shows `PowerShell syntax valid.` with the number of parameters.
 
-![The message of Check syntax in the PowerShell view](../images/script-check-syntax.png)
+![The message of Check Syntax in the PowerShell view](../images/script-check-syntax.png)
 
 ### Set the parameters
 

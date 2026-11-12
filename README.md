@@ -7,7 +7,7 @@
 
 A Configuration Manager workbench for realtime device investigation. Resolve a set of devices, run a CMPivot query or an approved Run Scripts script on them, inspect and export the results, then send the devices you selected to the next query or script. Every run is saved with its targets, parameters, raw responses and results. Built in Windows PowerShell 5.1. Part of the [AppPackager Suite](https://github.com/jasonulbright/app-packager-suite).
 
-![Pivots and Scripts](screenshots/main-dark.png)
+![Pivots and Scripts](docs/images/results.png)
 
 Read the [user guide](docs/index.md) for every view, dialog and setting.
 
@@ -43,7 +43,7 @@ The app uses your Windows identity. It stores no credentials.
 
 Set the **Site Code** and the **SMS Provider** name in **Options > Connection**, then select **Test Connection**. The line under the heading shows the bold titles **Site Code** and **SMS Provider** with their values. Before you set them, it shows `Connection not set.` and a note to open Options. A value saved in Options wins. The suite launcher fills an empty value through `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The `-SiteCode` and `-SMSProvider` command-line parameters override both for one session.
 
-![Options, Connection](screenshots/options-connection.png)
+![Options, Connection](docs/images/options-connection.png)
 
 Resolve targets in one of four ways:
 
@@ -84,11 +84,11 @@ Parameter rules, from the Run Scripts feature:
 
 The Devices tab shows **Script failed** with the exit code when a script fails on a device.
 
-![Script Parameters](screenshots/parameters.png)
+![Script Parameters](docs/images/dialog-parameters.png)
 
-![Run confirmation](screenshots/confirm-run.png)
+![Run confirmation](docs/images/confirm-run-script.png)
 
-![Script results](screenshots/script-results.png)
+![Results](docs/images/results.png)
 
 ### Results
 
@@ -103,9 +103,9 @@ Export the visible rows to CSV or JSON, copy them as a PowerShell command that r
 
 Select result rows and choose **Selection to Pivot** or **Selection to Script** to target only those devices in the next step.
 
-![Devices tab with errors](screenshots/devices-errors.png)
+![Devices tab](docs/images/results-devices.png)
 
-![Light theme](screenshots/main-light.png)
+![Light theme](docs/images/light-pivot.png)
 
 The light theme and the dark theme differ in colors only. Every blue box has white text in both themes.
 
