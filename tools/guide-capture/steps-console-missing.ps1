@@ -15,7 +15,7 @@ $win = Find-Top 'Pivots and Scripts' 10
 $before = Get-ElText (Get-El $win 'status')
 Invoke-El (Get-El $win 'btnConnect')
 # The failure shows in the status line. Wait for it to change; a fixed sleep is not evidence.
-if (-not (Wait-Until { (Get-ElText (Get-El $win 'status')) -ne $before -and (Get-El $win 'btnConnect').Current.IsEnabled } 60)) { throw 'The status line did not change after Test connection.' }
+if (-not (Wait-Until { (Get-ElText (Get-El $win 'status')) -ne $before -and (Get-El $win 'btnConnect').Current.IsEnabled } 60)) { throw 'The status line did not change after Test Connection.' }
 Start-Sleep -Seconds 1
 Log ('status: ' + (Get-ElText (Get-El $win 'status')))
 Shot $win 'console-missing-connect'

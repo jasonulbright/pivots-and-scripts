@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Logic of start-pivotsandscripts.ps1. The script cannot be dot-sourced (it opens the window), so each
 # function and each event handler is cut out of its syntax tree and run here, with plain objects in place
 # of the window controls and a stub module in place of the site. The functions run for real; the dialogs,
@@ -32,7 +32,7 @@ BeforeAll {
     $script:Handler['results.Add_Sorting'] = Get-EventHandlerBlock -Path $script:ShellPath -Target '$ui.results' -EventName 'Add_Sorting'
     $script:Handler['results.Add_ColumnReordered'] = Get-EventHandlerBlock -Path $script:ShellPath -Target '$ui.results' -EventName 'Add_ColumnReordered'
 
-    $script:ControlNames = @('btnPivot', 'btnScript', 'btnHistory', 'toggleTheme', 'txtThemeLabel', 'library', 'libraryFilter', 'btnOpen', 'btnSave', 'btnSaveSession', 'btnNewSession', 'heading', 'connectionInfo', 'btnOptions', 'btnSiteScripts', 'btnConnect', 'targetKind', 'targetInput', 'btnImport', 'btnResolve', 'targetSummary', 'btnTargets', 'editor', 'editorLabel', 'editorPosition', 'btnCheck', 'btnFind', 'findText', 'replaceText', 'btnReplace', 'btnRun', 'btnStop', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'resultFilter', 'btnCsv', 'btnJson', 'btnCopy', 'btnGrid', 'btnSelectionScript', 'btnSelectionPivot', 'results', 'devices', 'raw', 'pipeline', 'resultTabs', 'status')
+    $script:ControlNames = @('btnPivot', 'btnScript', 'btnHistory', 'toggleTheme', 'txtThemeLabel', 'library', 'libraryFilter', 'btnOpen', 'btnSave', 'btnSaveSession', 'btnNewSession', 'heading', 'connectionInfo', 'connectionPair', 'txtSiteCode', 'txtSmsProvider', 'btnOptions', 'btnSiteScripts', 'btnConnect', 'targetKind', 'targetInput', 'btnImport', 'btnResolve', 'targetSummary', 'btnTargets', 'editor', 'editorLabel', 'editorPosition', 'btnCheck', 'btnFind', 'findText', 'replaceText', 'btnReplace', 'btnRun', 'btnStop', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'resultFilter', 'btnCsv', 'btnJson', 'btnCopy', 'btnGrid', 'btnSelectionScript', 'btnSelectionPivot', 'results', 'devices', 'raw', 'pipeline', 'resultTabs', 'status')
 
     function script:New-FakeControl {
         $c = [pscustomobject]@{ Text = ''; IsEnabled = $true; Content = ''; Visibility = 'Visible'; ItemsSource = $null; SelectedItem = $null; SelectedIndex = 0; IsOn = $true; SelectedItems = @(); SelectionStart = 0; SelectionLength = 0; Focused = $false; Selected = $null; SyntaxHighlighting = $null }
@@ -89,6 +89,7 @@ BeforeEach {
     $window = New-FakeControl
     $module = $script:StubModule
     $dataRoot = Join-Path $TestDrive ('data-' + [guid]::NewGuid().ToString('N'))
+    $logPath = Join-Path $dataRoot 'Logs\test.log'
     $script:prefs = @{ SiteCode = 'MCM'; SMSProvider = 'cm01.contoso.com'; ApproveAfterSubmit = $false }
     $script:persisted = @{ SiteCode = 'MCM'; SMSProvider = 'cm01.contoso.com' }
     $script:session = [pscustomobject]@{ SchemaVersion = 1; ID = [guid]::NewGuid().ToString(); Created = [DateTime]::UtcNow.ToString('o'); Steps = @() }
@@ -120,14 +121,25 @@ Describe 'Show-PasError' {
         Show-PasError $null
         $script:Shown[0].Message | Should -Be ''
     }
+    It 'keeps the raw text of another error out of the window and writes it to the log file' {
+        $log = Join-Path $TestDrive 'show-error.log'
+        Set-PasLogPath $log
+        try {
+            try { throw [System.IO.IOException]::new('raw disk detail') } catch { Show-PasError $_ }
+        }
+        finally { Set-PasLogPath '' }
+        $script:Shown[0].Message | Should -Be 'The action failed. The log file has the details.'
+        $ui.status.Text | Should -Be 'The action failed. The log file has the details.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'raw disk detail'
+    }
 }
 
 Describe 'Set-PasMode' {
     It 'shows the script controls and names the view for the script mode' {
         Set-PasMode 'Script'
         $ui.heading.Text | Should -Be 'PowerShell'
-        $ui.editorLabel.Text | Should -Be 'Script draft editor'
-        $ui.btnRun.Content | Should -Be 'Run approved script'
+        $ui.editorLabel.Text | Should -Be 'Script Draft Editor'
+        $ui.btnRun.Content | Should -Be 'Run Approved Script'
         foreach ($n in 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts') { $ui[$n].Visibility | Should -Be 'Visible' }
         $script:mode | Should -Be 'Script'
     }
@@ -135,7 +147,7 @@ Describe 'Set-PasMode' {
         Set-PasMode 'Script'
         Set-PasMode 'Pivot'
         $ui.heading.Text | Should -Be 'CMPivot'
-        $ui.editorLabel.Text | Should -Be 'Query editor'
+        $ui.editorLabel.Text | Should -Be 'Query Editor'
         $ui.btnRun.Content | Should -Be 'Run CMPivot'
         foreach ($n in 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts') { $ui[$n].Visibility | Should -Be 'Collapsed' }
     }
@@ -217,9 +229,12 @@ Describe 'Set-PasHighlighting' {
 }
 
 Describe 'Update-PasConnectionInfo' {
-    It 'shows the site and the provider' {
+    It 'shows the site and the provider values and hides the hint' {
         Update-PasConnectionInfo
-        $ui.connectionInfo.Text | Should -Be 'Site MCM on cm01.contoso.com'
+        $ui.txtSiteCode.Text | Should -Be 'MCM'
+        $ui.txtSmsProvider.Text | Should -Be 'cm01.contoso.com'
+        $ui.connectionPair.Visibility | Should -Be 'Visible'
+        $ui.connectionInfo.Visibility | Should -Be 'Collapsed'
     }
     It 'asks for the options when <Case>' -ForEach @(
         @{ Case = 'the site code is missing'; Site = ''; Provider = 'cm01' }
@@ -229,6 +244,10 @@ Describe 'Update-PasConnectionInfo' {
         $script:prefs.SiteCode = $Site; $script:prefs.SMSProvider = $Provider
         Update-PasConnectionInfo
         $ui.connectionInfo.Text | Should -Be 'Connection not set. Open Options.'
+        $ui.connectionInfo.Visibility | Should -Be 'Visible'
+        $ui.connectionPair.Visibility | Should -Be 'Collapsed'
+        $ui.txtSiteCode.Text | Should -Be $Site
+        $ui.txtSmsProvider.Text | Should -Be $Provider
     }
 }
 
@@ -393,7 +412,7 @@ Describe 'Start-PasWork guards' {
         $script:work | Should -BeNullOrEmpty
     }
     It 'refuses a run without targets' {
-        { Start-PasWork 'Run' } | Should -Throw '*Resolve targets first*'
+        { Start-PasWork 'Run' } | Should -Throw '*Select Resolve Targets first*'
     }
     It 'refuses a run after the connection changed' {
         $script:targets = @([pscustomobject]@{ Device = 'A'; ResourceID = 1; Client = $true })
@@ -449,7 +468,7 @@ Describe 'Start-PasWork run' {
         $ui.editor.Text = 'Disk | project Name'
         Start-PasWork 'Run'
         $script:Confirms.Count | Should -Be 1
-        $script:Confirms[0].Title | Should -Be 'Confirm target snapshot'
+        $script:Confirms[0].Title | Should -Be 'Confirm Target Snapshot'
         $script:Confirms[0].Message | Should -BeLike 'Run this CMPivot query on 2 resolved devices?*one operation for this device list*Disk | project Name'
         $script:work | Should -BeNullOrEmpty
         @($script:session.Steps).Count | Should -Be 0
@@ -575,11 +594,11 @@ Describe 'Start-PasWork other actions' {
         Invoke-Handler 'targetInput.Add_TextChanged'
         $script:targets.Count | Should -Be 0
         $script:targetCollectionId | Should -Be ''
-        $ui.targetSummary.Text | Should -Be 'Targets changed. Resolve again.'
+        $ui.targetSummary.Text | Should -Be 'Targets changed. Select Resolve Targets again.'
         $script:targets = @([pscustomobject]@{ ResourceID = 1 })
         Invoke-Handler 'targetKind.Add_SelectionChanged'
         $script:targets.Count | Should -Be 0
-        $ui.targetSummary.Text | Should -Be 'Target mode changed. Resolve again.'
+        $ui.targetSummary.Text | Should -Be 'Target mode changed. Select Resolve Targets again.'
     }
     It 'shows the connection error from a button instead of throwing: <Name>' -ForEach @(
         @{ Name = 'btnConnect' }, @{ Name = 'btnResolve' }, @{ Name = 'btnRun' }
@@ -629,7 +648,7 @@ Describe 'Submit button' {
         $script:mode = 'Script'; $ui.editor.Text = 'param([string]$A,[int]$B) 1'
         $script:ConfirmAnswer = $false
         Invoke-Handler 'btnSubmit.Add_Click'
-        $script:Confirms[0].Title | Should -Be 'Create ConfigMgr script'
+        $script:Confirms[0].Title | Should -Be 'Create ConfigMgr Script'
         $script:Confirms[0].Message | Should -BeLike '*Parameters stored with the script: A (String), B (Int32)'
         $script:work | Should -BeNullOrEmpty
     }
@@ -1029,6 +1048,7 @@ Describe 'Timer tick' {
         $script:work.Queue.Enqueue([pscustomobject]@{ Kind = 'Raw'; Value = $bad })
         { & ([scriptblock]::Create($script:Tick)) } | Should -Not -Throw
         $script:rawRecords.Count | Should -Be 1
+        $ui.raw.Text | Should -Not -Match 'cannot read'
     }
     It 'ignores an event of a kind it does not know' {
         $script:work.Queue.Enqueue([pscustomobject]@{ Kind = 'Mystery'; Value = 1 })

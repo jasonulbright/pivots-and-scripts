@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Pure functions of the module: hashing, ID checks, result parsing, sorting, settings. No site, no window.
 # The first tests of each group are the tests that were in Core.Tests.ps1 before the suite was added.
 
@@ -455,21 +455,27 @@ Describe 'Get-PasWorkerError' {
             Get-PasWorkerError $ps | Should -BeNullOrEmpty
         } finally { $ps.Dispose() }
     }
-    It 'returns the text of an uncaught non-terminating error' {
+    It 'returns a fixed sentence for an uncaught non-terminating error and logs its text' {
+        $log = Join-Path $TestDrive 'worker-error.log'
+        Set-PasLogPath $log
         $ps = [PowerShell]::Create()
         try {
             [void]$ps.AddScript('Write-Error "worker failed"')
             $null = $ps.Invoke()
-            Get-PasWorkerError $ps | Should -Be 'worker failed'
-        } finally { $ps.Dispose() }
+            Get-PasWorkerError $ps | Should -Be 'The worker reported an error. The log file has the details.'
+        } finally { $ps.Dispose(); Set-PasLogPath '' }
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'worker failed'
     }
-    It 'joins several errors with line breaks' {
+    It 'logs several errors joined with line breaks' {
+        $log = Join-Path $TestDrive 'worker-errors.log'
+        Set-PasLogPath $log
         $ps = [PowerShell]::Create()
         try {
             [void]$ps.AddScript('Write-Error "first"; Write-Error "second"')
             $null = $ps.Invoke()
-            Get-PasWorkerError $ps | Should -Be "first`nsecond"
-        } finally { $ps.Dispose() }
+            Get-PasWorkerError $ps | Should -Be 'The worker reported an error. The log file has the details.'
+        } finally { $ps.Dispose(); Set-PasLogPath '' }
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'first\r?\nsecond'
     }
     It 'returns nothing when the worker had no error' {
         $ps = [PowerShell]::Create()
@@ -478,5 +484,118 @@ Describe 'Get-PasWorkerError' {
             $null = $ps.Invoke()
             Get-PasWorkerError $ps | Should -BeNullOrEmpty
         } finally { $ps.Dispose() }
+    }
+}
+
+Describe 'Write-PasLog and Set-PasLogPath' {
+    BeforeEach { Set-PasLogPath '' }
+    AfterEach { Set-PasLogPath '' }
+    It 'does nothing and does not throw when no log path is set' {
+        { Write-PasLog 'text' } | Should -Not -Throw
+        { Write-PasLog -Message 'text' -Level WARN } | Should -Not -Throw
+    }
+    It 'appends one line with the time, the level and the text' {
+        $log = Join-Path $TestDrive 'a.log'
+        Set-PasLogPath $log
+        Write-PasLog 'first' -Level WARN
+        Write-PasLog 'second' -Level INFO
+        $lines = @(Get-Content -LiteralPath $log)
+        $lines.Count | Should -Be 2
+        $lines[0] | Should -Match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \[WARN\] first$'
+        $lines[1] | Should -Match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \[INFO\] second$'
+    }
+    It 'uses the level ERROR when no level is given' {
+        $log = Join-Path $TestDrive 'b.log'
+        Set-PasLogPath $log
+        Write-PasLog 'text'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match '\[ERROR\] text'
+    }
+    It 'refuses a level that is not INFO, WARN or ERROR' {
+        Set-PasLogPath (Join-Path $TestDrive 'c.log')
+        { Write-PasLog 'text' -Level 'DEBUG' } | Should -Throw
+    }
+    It 'creates the folder of the log file' {
+        $log = Join-Path $TestDrive 'new folder\inner\d.log'
+        Set-PasLogPath $log
+        Write-PasLog 'text'
+        Test-Path -LiteralPath $log | Should -BeTrue
+    }
+    It 'writes while another reader or writer holds the file open' {
+        $log = Join-Path $TestDrive 'e.log'
+        [IO.File]::WriteAllText($log, '')
+        $other = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::ReadWrite)
+        try {
+            Set-PasLogPath $log
+            Write-PasLog 'shared'
+        }
+        finally { $other.Dispose() }
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'shared'
+    }
+    It 'swallows a failure, such as a path that is a folder' {
+        Set-PasLogPath $TestDrive
+        { Write-PasLog 'text' } | Should -Not -Throw
+    }
+    It 'stops writing after the path is cleared' {
+        $log = Join-Path $TestDrive 'f.log'
+        Set-PasLogPath $log
+        Write-PasLog 'one'
+        Set-PasLogPath ''
+        Write-PasLog 'two'
+        (Get-Content -LiteralPath $log -Raw) | Should -Not -Match 'two'
+    }
+}
+
+Describe 'Get-PasUserErrorText' {
+    BeforeAll {
+        function script:Get-Record { param([scriptblock]$Block) try { & $Block } catch { return $_ } }
+    }
+    BeforeEach { Set-PasLogPath '' }
+    AfterEach { Set-PasLogPath '' }
+    It 'passes the message of a plain throw through and writes no log line' {
+        $log = Join-Path $TestDrive 'u1.log'
+        Set-PasLogPath $log
+        $record = Get-Record { throw 'Enter a target.' }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail | Should -Be 'Enter a target.'
+        Test-Path -LiteralPath $log | Should -BeFalse
+    }
+    It 'gives the fallback and logs the raw text and the type for a typed exception' {
+        $log = Join-Path $TestDrive 'u2.log'
+        Set-PasLogPath $log
+        $record = Get-Record { throw [System.IO.IOException]::new('raw io detail') }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail | Should -Be 'Fallback.'
+        $text = Get-Content -LiteralPath $log -Raw
+        $text | Should -Match 'raw io detail'
+        $text | Should -Match 'System\.IO\.IOException'
+    }
+    It 'gives the fallback for a RuntimeException that has an inner exception' {
+        $log = Join-Path $TestDrive 'u3.log'
+        Set-PasLogPath $log
+        $record = Get-Record { throw [System.Management.Automation.RuntimeException]::new('outer detail', [System.InvalidOperationException]::new('inner detail')) }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail | Should -Be 'Fallback.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'outer detail'
+    }
+    It 'gives the fallback for a cmdlet error and logs its text' {
+        $log = Join-Path $TestDrive 'u4.log'
+        Set-PasLogPath $log
+        $missing = Join-Path $TestDrive 'no-such-file-here.txt'
+        $record = Get-Record { Get-Item -LiteralPath $missing -ErrorAction Stop }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail | Should -Be 'Fallback.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'no-such-file-here'
+    }
+    It 'gives the fallback for an engine error' {
+        $record = Get-Record { $null.Missing() }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' | Should -Be 'Fallback.'
+    }
+    It 'writes no log line without -LogDetail' {
+        $log = Join-Path $TestDrive 'u5.log'
+        Set-PasLogPath $log
+        $record = Get-Record { throw [System.IO.IOException]::new('raw io detail') }
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' | Should -Be 'Fallback.'
+        Test-Path -LiteralPath $log | Should -BeFalse
+    }
+    It 'does not throw when no log path is set' {
+        $record = Get-Record { throw [System.IO.IOException]::new('raw io detail') }
+        { Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail } | Should -Not -Throw
+        Get-PasUserErrorText -ErrorRecord $record -Fallback 'Fallback.' -LogDetail | Should -Be 'Fallback.'
     }
 }

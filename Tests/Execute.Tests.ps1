@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # The background worker (Module\Execute.ps1). The window starts it in its own runspace and reads its events
 # from a queue; these tests start it the same way. The module the worker imports is a copy of the real
 # module with the site calls replaced by a stub that follows a scenario (the PAS_SCN environment
@@ -16,8 +16,8 @@ function global:Remove-CimSession { param($CimSession) Add-Content -LiteralPath 
 function Assert-PasConnection { param($SiteCode,$SMSProvider) Write-PasCall 'connect'; if ((Get-PasScn)['ConnectFail']) { throw 'Configuration Manager connection failed. Check console installation, site and permissions.' } }
 function New-PasCimSession { param($SMSProvider) Write-PasCall 'cim-open'; [pscustomobject]@{ Name = 'cim' } }
 function Resolve-PasTargets { param($Kind,$InputText) Write-PasCall "resolve|$Kind|$InputText"; [pscustomobject]@{Targets=@([pscustomobject]@{Device='PC-1';ResourceID=1;Client=$true;Active=$true});Unknown=@();CollectionID='';ResolvedAt='t'} }
-function New-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($Text,$SMSProvider,$SiteCode) Write-PasCall "submit|$Text"; if ((Get-PasScn)['SubmitFail']) { throw (Get-PasScn)['SubmitFail'] }; [pscustomobject]@{ScriptGuid='GUID-1';Parameters=@('A','B')} }
-function Set-PasScriptApproval { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Decision,$Comment) Write-PasCall "approval|$ScriptGuid|$Decision|$Comment"; Write-PasCall ('approval-confirm|' + $PSBoundParameters.ContainsKey('Confirm') + '|' + $PSBoundParameters['Confirm']); if ((Get-PasScn)['ApproveFail']) { throw (Get-PasScn)['ApproveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State=$(if ((Get-PasScn)['ApproveState']) { (Get-PasScn)['ApproveState'] } else { 'Approved' });Approver='CONTOSO\approver'} }
+function New-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($Text,$SMSProvider,$SiteCode) Write-PasCall "submit|$Text"; if ((Get-PasScn)['SubmitFail']) { throw (Get-PasScn)['SubmitFail'] }; if ((Get-PasScn)['SubmitFailTyped']) { throw [IO.IOException]::new([string](Get-PasScn)['SubmitFailTyped']) }; [pscustomobject]@{ScriptGuid='GUID-1';Parameters=@('A','B')} }
+function Set-PasScriptApproval { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Decision,$Comment) Write-PasCall "approval|$ScriptGuid|$Decision|$Comment"; Write-PasCall ('approval-confirm|' + $PSBoundParameters.ContainsKey('Confirm') + '|' + $PSBoundParameters['Confirm']); if ((Get-PasScn)['ApproveFail']) { throw (Get-PasScn)['ApproveFail'] }; if ((Get-PasScn)['ApproveFailTyped']) { throw [IO.IOException]::new([string](Get-PasScn)['ApproveFailTyped']) }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State=$(if ((Get-PasScn)['ApproveState']) { (Get-PasScn)['ApproveState'] } else { 'Approved' });Approver='CONTOSO\approver'} }
 function Remove-PasManagedScript { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid) Write-PasCall "remove|$ScriptGuid"; Write-PasCall ('remove-confirm|' + $PSBoundParameters.ContainsKey('Confirm') + '|' + $PSBoundParameters['Confirm']); if ((Get-PasScn)['RemoveFail']) { throw (Get-PasScn)['RemoveFail'] }; [pscustomobject]@{ScriptGuid=$ScriptGuid;State='Removed'} }
 function Get-PasSiteScripts { param($SMSProvider,$SiteCode) Write-PasCall 'list'; [pscustomobject]@{Name='S';ScriptGuid='G'} }
 function Get-PasSiteScript { param($SMSProvider,$SiteCode,$ScriptGuid)
@@ -29,14 +29,14 @@ function Get-PasSiteScript { param($SMSProvider,$SiteCode,$ScriptGuid)
 function Start-PasPivotRun { [CmdletBinding(SupportsShouldProcess)] param($SMSProvider,$Query,$CollectionId,$ResourceIds)
     Write-PasCall ("pivot|$CollectionId|" + (@($ResourceIds) -join ','))
     $s = Get-PasScn
-    if ($s['StartThrow']) { throw $s['StartThrow'] }
+    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartStatus']) { $e = [InvalidOperationException]::new(('AdminService returned HTTP {0}. The log file has the details.' -f $s['StartStatus'])); $e.Data['StatusCode'] = [int]$s['StartStatus']; throw $e }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
     if ($s['StartNone']) { return }
     [pscustomobject]@{OperationID=$(if ($s['StartNullId']) { $null } else { 900 });Raw=[pscustomobject]@{OperationId=900}}
 }
 function Start-PasScriptRun { [CmdletBinding(SupportsShouldProcess)] param($ScriptGuid,$Arguments,$CollectionId,$ResourceIds)
     Write-PasCall ("script|$CollectionId|" + (@($ResourceIds) -join ',') + '|' + ((@($Arguments.Keys | Sort-Object) | ForEach-Object { "$_=$($Arguments[$_]):$($Arguments[$_].GetType().Name)" }) -join ';'))
     $s = Get-PasScn
-    if ($s['StartThrow']) { throw $s['StartThrow'] }
+    if ($s['StartThrow']) { throw $s['StartThrow'] }; if ($s['StartStatus']) { $e = [InvalidOperationException]::new(('AdminService returned HTTP {0}. The log file has the details.' -f $s['StartStatus'])); $e.Data['StatusCode'] = [int]$s['StartStatus']; throw $e }; if ($s['StartThrowTyped']) { throw [IO.IOException]::new([string]$s['StartThrowTyped']) }
     if ($s['StartNone']) { return }
     [pscustomobject]@{OperationID=$(if ($s['StartNullId']) { $null } else { 901 });ReturnValue=0}
 }
@@ -201,10 +201,28 @@ Describe 'Worker script submission' {
         $v.ApprovalError | Should -Be 'The site requires a second approver.'
         $v.Guid | Should -Be 'GUID-1'
     }
+    It 'keeps the raw text of an approval error out of the event and writes it to the log file' {
+        $log = Join-Path $TestDrive 'approval.log'
+        $events = Invoke-Worker (New-Request -Action 'Submit' -Extra @{ AutoApprove = $true; LogPath = $log }) -Scenario @{ ApproveFailTyped = 'raw approval detail' }
+        $v = ($events | Where-Object Kind -eq 'Submitted').Value
+        $v.ApprovalError | Should -Be 'The approval failed. The log file has the details.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'raw approval detail'
+    }
     It 'reports a failed creation as one error and does not try to approve' {
         $events = Invoke-Worker (New-Request -Action 'Submit' -Extra @{ AutoApprove = $true }) -Scenario @{ SubmitFail = 'Script parameters could not be stored: x' }
         (@($events | ForEach-Object Kind) -join ',') | Should -Be 'Error,Done'
         Get-Calls | Should -Not -Contain 'approval|GUID-1|Approve|Approved at submission by Pivots and Scripts.'
+    }
+    It 'sends a fixed sentence for an error of another kind and writes the raw text to the log file' {
+        $log = Join-Path $TestDrive 'submit.log'
+        $events = Invoke-Worker (New-Request -Action 'Submit' -Extra @{ LogPath = $log }) -Scenario @{ SubmitFailTyped = 'raw submit detail' }
+        (@($events | ForEach-Object Kind) -join ',') | Should -Be 'Error,Done'
+        ($events | Where-Object Kind -eq 'Error').Value | Should -Be 'The operation failed. The log file has the details.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'raw submit detail'
+    }
+    It 'does not write a log file when the request has no log path' {
+        $events = Invoke-Worker (New-Request -Action 'Submit') -Scenario @{ SubmitFailTyped = 'raw submit detail' }
+        ($events | Where-Object Kind -eq 'Error').Value | Should -Be 'The operation failed. The log file has the details.'
     }
 }
 
@@ -289,12 +307,20 @@ Describe 'Worker run' {
         $final['13'].State | Should -Be 'Not a client'
     }
     It 'reports a submission error on every device and polls nothing' {
-        $events = Invoke-Worker (New-Request) -Scenario @{ StartThrow = 'AdminService returned HTTP 403 (Forbidden).' }
+        $events = Invoke-Worker (New-Request) -Scenario @{ StartStatus = 403 }
         $final = Get-FinalState $events
         $final['11'].State | Should -Be 'Submission error'
-        $final['11'].Detail | Should -BeLike '*HTTP 403*'
+        $final['11'].Detail | Should -Be 'AdminService returned HTTP 403. The log file has the details.'
         $final['12'].State | Should -Be 'Submission error'
         @(Get-Calls | Where-Object { $_ -eq 'poll' }).Count | Should -Be 0
+    }
+    It 'gives a fixed sentence for a submission error of another kind and logs the raw text' {
+        $log = Join-Path $TestDrive 'start.log'
+        $events = Invoke-Worker (New-Request -Extra @{ LogPath = $log }) -Scenario @{ StartThrowTyped = 'raw start detail' }
+        $final = Get-FinalState $events
+        $final['11'].Detail | Should -Be 'The run could not be submitted. The log file has the details.'
+        $final['12'].Detail | Should -Be 'The run could not be submitted. The log file has the details.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'raw start detail'
     }
     It 'reports a run that returns nothing as submitted without an operation ID, and polls nothing: <Mode>' -ForEach @(@{ Mode = 'Pivot' }, @{ Mode = 'Script' }) {
         $events = Invoke-Worker (New-Request -Mode $Mode) -Scenario @{ StartNone = $true }
@@ -342,7 +368,7 @@ Describe 'Worker run' {
         $final = Get-FinalState $events
         $final['12'].State | Should -Be 'Response received'
         $final['11'].State | Should -Be 'Query failed'
-        $final['11'].Detail | Should -BeLike '*not*'
+        $final['11'].Detail | Should -Be 'The result could not be read. The log file has the details.'
         @($events | Where-Object Kind -eq 'Row').Count | Should -Be 1
     }
     It 'finds a result that arrives on a later poll' {
@@ -353,19 +379,20 @@ Describe 'Worker run' {
         (Get-FinalState $events)['11'].State | Should -Be 'Response received'
     }
     It 'treats a 404 from the status page as no result yet' {
-        $events = Invoke-Worker (New-Request) -Scenario @{ PollThrow = 'AdminService returned HTTP 404 (Not Found).'; PollStatus = 404 }
+        $events = Invoke-Worker (New-Request) -Scenario @{ PollThrow = 'AdminService returned HTTP 404. The log file has the details.'; PollStatus = 404 }
         (Get-FinalState $events)['11'].State | Should -Be 'No response within timeout'
     }
     It 'reports the last polling error on the devices that got no result' {
-        $events = Invoke-Worker (New-Request) -Scenario @{ PollThrow = 'AdminService returned HTTP 500 (Server Error).'; PollStatus = 500 }
+        $log = Join-Path $TestDrive 'poll.log'
+        $events = Invoke-Worker (New-Request -Extra @{ LogPath = $log }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500. The log file has the details.'; PollStatus = 500 }
         $d = (Get-FinalState $events)['11']
         $d.State | Should -Be 'Result error'
-        $d.Detail | Should -BeLike '*HTTP 500*'
+        $d.Detail | Should -Be 'AdminService returned HTTP 500. The log file has the details.'
     }
     It 'forgets a polling error after a poll that works' {
         $row = @{ ResourceId = 11; DeviceName = 'PC-11'; ScriptExecutionState = 1; ScriptExitCode = 0; ErrorMessage = ''; ScriptOutput = $script:PivotOk }
         # The first poll fails, the second works and finds device 11, a third finds nothing more and the timeout ends the wait.
-        $events = Invoke-Worker (New-Request -Extra @{ TimeoutSeconds = 4 }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500 (Server Error).'; PollStatus = 500; PollThrowCount = 1; Rows = @($row) }
+        $events = Invoke-Worker (New-Request -Extra @{ TimeoutSeconds = 4 }) -Scenario @{ PollThrow = 'AdminService returned HTTP 500. The log file has the details.'; PollStatus = 500; PollThrowCount = 1; Rows = @($row) }
         @(Get-Calls | Where-Object { $_ -eq 'poll' }).Count | Should -BeGreaterThan 2
         $final = Get-FinalState $events
         $final['11'].State | Should -Be 'Response received'

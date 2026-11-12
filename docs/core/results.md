@@ -97,7 +97,7 @@ Without a selected row, a message says to select rows first.
 | A device shows `No response within timeout`. | No result arrived in 300 seconds. | Run again later. The device can still run the operation. |
 | A device shows `Result error`. | The tool could not read the result page. | Read the detail. Check the connection. |
 | A device shows `Query failed` or `Script failed`. | The query or the script failed on the device. | Read the exit code and the detail. |
-| A device shows `Stopped waiting`. | You selected **Stop waiting**. | Run again if you need the answer. |
+| A device shows `Stopped waiting`. | You selected **Stop Waiting**. | Run again if you need the answer. |
 
 ## Links
 

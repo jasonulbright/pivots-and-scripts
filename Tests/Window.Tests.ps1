@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Window tests. The main window is opened off screen on an STA thread in both views (CMPivot and
 # PowerShell), in both themes and at 1024x720 and 1440x900, and measured. The three dialogs are built
 # from XAML text in Module\*Dialog.ps1; their XAML is opened and measured too. The app-specific names
@@ -179,7 +179,7 @@ Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
 
     It 'names the run button after the view' {
         ($script:Measured['dark|1440x900'] | Where-Object View -eq 'Pivot').RunText | Should -Be 'Run CMPivot'
-        ($script:Measured['dark|1440x900'] | Where-Object View -eq 'Script').RunText | Should -Be 'Run approved script'
+        ($script:Measured['dark|1440x900'] | Where-Object View -eq 'Script').RunText | Should -Be 'Run Approved Script'
     }
 
     It 'shows the heading of view <View>' -ForEach $script:ViewCases {
@@ -256,6 +256,10 @@ Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
             $messageTitles = @([regex]::Matches($text, "Show-(?:Themed|Confirm)\w*\s[^\r\n]*?-Title\s+'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
             foreach ($m in $messageTitles) { $dialogTitles | Should -Not -Contain $m -Because "$f shows a message titled '$m' above a dialog with the same title" }
         }
+    }
+    It 'titles the three dialogs Options, Script Parameters and Site Scripts' {
+        $titles = @($script:DialogXaml.Values | ForEach-Object { if ($_ -match '\sTitle="([^"]*)"') { $Matches[1] } } | Where-Object { $_ })
+        ($titles | Sort-Object) | Should -Be @('Options', 'Script Parameters', 'Site Scripts')
     }
     It 'gives the dialogs in XAML different titles' {
         $titles = @($script:DialogXaml.Values | ForEach-Object { if ($_ -match '\sTitle="([^"]*)"') { $Matches[1] } } | Where-Object { $_ })
@@ -344,5 +348,36 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
         $fixed = @($known | Where-Object { $found -notcontains $_ })
         $new | Should -BeNullOrEmpty -Because 'a new contrast violation appeared'
         $fixed | Should -BeNullOrEmpty -Because 'a known defect is fixed: remove it from Get-KnownContrastDefect'
+    }
+}
+
+Describe 'State contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) -Skip:(-not $script:WindowGuard.Allowed) {
+    BeforeAll {
+        $script:States = Invoke-WpfSta -Arguments @{ Config = $script:AppConfig; Dark = ($Theme -eq 'dark') } -Script {
+            $cfg = $Arguments.Config
+            $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
+            try {
+                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $cfg.Views[0].Mode
+                , @(Get-StateContrast $w)
+            }
+            finally { $w.Close() }
+        }
+    }
+
+    It 'measures the selected list item, grid row and combo box item, and the hover and pressed state of the buttons' {
+        foreach ($kind in 'SelectedListItem', 'SelectedGridRow', 'SelectedComboItem', 'HoverText', 'HoverBorder', 'PressedText') {
+            @($script:States | Where-Object Kind -eq $kind).Count | Should -BeGreaterThan 0 -Because $kind
+        }
+        @($script:States | Where-Object { $null -eq $_.Ratio }) | Should -BeNullOrEmpty
+    }
+
+    It 'shows white text on the highlight blue for the selected list item, grid row and combo box item at 4.5:1 or more' {
+        $bad = $script:States | Where-Object { $_.Kind -like 'Selected*' -and $_.Ratio -lt $_.Min }
+        $bad | ForEach-Object { '{0} {1} = {2:N2}' -f $_.Kind, $_.Name, $_.Ratio } | Should -BeNullOrEmpty
+    }
+
+    It 'keeps the text of a hovered and of a pressed button at 4.5:1 and the hover border at 3:1' {
+        $bad = $script:States | Where-Object { $_.Kind -notlike 'Selected*' -and $_.Ratio -lt $_.Min }
+        $bad | ForEach-Object { '{0} {1} = {2:N2}' -f $_.Kind, $_.Name, $_.Ratio } | Should -BeNullOrEmpty
     }
 }
