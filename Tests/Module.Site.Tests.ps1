@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Read side of the module: the connection check, target resolution and the CIM reads of site scripts and
 # their run status. ConfigMgr cmdlets are global stubs (TestHelpers.ps1) that Pester mocks. A mock body
 # cannot see test variables, so fixtures pass through $global:Fx and arguments are read from
@@ -78,12 +78,16 @@ Describe 'Assert-PasConnection' {
         Mock Get-CMSite { for ($i = 0; $i -lt $global:Fx; $i++) { [pscustomobject]@{ SiteCode = 'MCM' } } } -ModuleName PivotsAndScripts
         { Assert-PasConnection -SiteCode 'MCM' -SMSProvider 'cm01' } | Should -Throw '*Site MCM was not found on SMS Provider cm01*'
     }
-    It 'reports the reason when the site lookup fails instead of saying the site was not found' {
+    It 'says the check failed, and writes the reason to the log file, when the site lookup fails' {
         Mock Get-CMSite { Write-Error 'Access is denied to the SMS Provider.' -ErrorAction Continue } -ModuleName PivotsAndScripts
         $message = $null
-        try { Assert-PasConnection -SiteCode 'MCM' -SMSProvider 'cm01' } catch { $message = $_.Exception.Message }
-        $message | Should -BeLike '*Access is denied to the SMS Provider*'
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { Assert-PasConnection -SiteCode 'MCM' -SMSProvider 'cm01' } catch { $message = $_.Exception.Message } finally { Set-PasLogPath '' }
+        $message | Should -Be 'Site MCM could not be checked on SMS Provider cm01. The log file has the details.'
         $message | Should -Not -BeLike '*was not found*'
+        $message | Should -Not -BeLike '*Access is denied*'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'Access is denied to the SMS Provider'
     }
     It 'passes a connection error up' {
         Mock Connect-CMSite { throw 'boom from Connect-CMSite' } -ModuleName PivotsAndScripts
@@ -330,11 +334,14 @@ Describe 'Get-PasSiteScript' {
         $s.DefinitionError | Should -Be ''
         @($s.Parameters).Count | Should -Be 0
     }
-    It 'returns the reason instead of throwing when the definition cannot be read' {
+    It 'returns a fixed sentence instead of throwing when the definition cannot be read, and logs the reason' {
         $global:Fx.Items = @((New-CimFixture 'SMS_Scripts' @{ ScriptGuid = 'G'; ScriptName = 'S'; ApprovalState = 3; Author = 'a'; Approver = 'b'; ParamsDefinition = 'not base64 !!' }))
-        $s = Get-PasSiteScript -SMSProvider 'cm01' -SiteCode 'MCM' -ScriptGuid ([guid]::NewGuid())
-        $s.DefinitionError | Should -Not -BeNullOrEmpty
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { $s = Get-PasSiteScript -SMSProvider 'cm01' -SiteCode 'MCM' -ScriptGuid ([guid]::NewGuid()) } finally { Set-PasLogPath '' }
+        $s.DefinitionError | Should -Be 'The stored definition is not valid. The log file has the details.'
         @($s.Parameters).Count | Should -Be 0
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'could not be read'
     }
     It 'removes the session when the query fails, and passes the error up' {
         $global:Fx.Throw = 'WMI query failed'

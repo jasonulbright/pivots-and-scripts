@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Script parameters: reading them from script text, checking them against what Run Scripts accepts,
 # storing them as a site definition, and turning the typed values into the arguments of a run.
 

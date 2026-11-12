@@ -31,14 +31,14 @@ None.
 ## Limits
 
 - The order of the Tab key follows the layout of the window: sidebar, target box, editor, buttons, result grid.
-- A double-click on a library entry opens it in the editor. The keyboard way is **Open query or script**.
+- A double-click on a library entry opens it in the editor. The keyboard way is **Open Query or Script**.
 - The Tab order of the dialogs was not checked in this guide.
 
 ## Troubleshooting
 
 | Message or symptom | Cause | Fix |
 |---|---|---|
-| A button is skipped. | The button is disabled, for example **Stop waiting** when no run is active. | Start a run first. |
+| A button is skipped. | The button is disabled, for example **Stop Waiting** when no run is active. | Start a run first. |
 
 ## Links
 

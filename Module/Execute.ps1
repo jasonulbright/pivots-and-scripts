@@ -5,6 +5,8 @@ function Send-Device { param($Job,[string]$State,[string]$Detail='') Send-Event 
 $cim=$null
 try {
     Import-Module $Request.Module -Force -DisableNameChecking
+    # The worker has its own module instance, so it gets the log file path of the window.
+    if ($Request.LogPath) { Set-PasLogPath $Request.LogPath }
     Assert-PasConnection -SiteCode $Request.SiteCode -SMSProvider $Request.Provider
     if ($Request.Action -eq 'Connect') { Send-Event 'Notice' "Connected to site $($Request.SiteCode)."; return }
     if ($Request.Action -eq 'Resolve') { Send-Event 'Targets' (Resolve-PasTargets -Kind $Request.Kind -InputText $Request.InputText); return }
@@ -18,7 +20,7 @@ try {
                 $approved = [bool]($decision -and $decision.State -eq 'Approved')
                 if (-not $approved) { $approval = 'The site reports the state: ' + $(if ($decision) { $decision.State } else { 'unknown' }) + '.' }
             }
-            catch { $approval = $_.Exception.Message }
+            catch { $approval = Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The approval failed. The log file has the details.' -LogDetail }
         }
         Send-Event 'Submitted' ([pscustomobject]@{Guid=[string]$script.ScriptGuid;Hash=(Get-PasHash $Request.Text);Parameters=@($script.Parameters);Approved=$approved;ApprovalError=$approval})
         return
@@ -50,7 +52,7 @@ try {
     try {
         if ($Request.Mode -eq 'Pivot') { $operations = @(Start-PasPivotRun -SMSProvider $Request.Provider -Query $Request.Text -CollectionId $collectionId -ResourceIds $ids -Confirm:$false) }
         else { $operations = @(Start-PasScriptRun -ScriptGuid $Request.ScriptGuid -Arguments $arguments -CollectionId $collectionId -ResourceIds $ids -Confirm:$false) }
-    } catch { foreach ($job in $jobs.Values) { Send-Device $job 'Submission error' $_.Exception.Message }; return }
+    } catch { $submitError = Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The run could not be submitted. The log file has the details.' -LogDetail; foreach ($job in $jobs.Values) { Send-Device $job 'Submission error' $submitError }; return }
     foreach ($operation in $operations) { Send-Event 'Raw' ([pscustomobject]@{Device='';Phase='Submit';Response=$(if ($operation.PSObject.Properties['Raw']) { $operation.Raw } else { $operation })}) }
     # A run that returns nothing has no operation ID either; polling operation 0 would wait for a result that never comes.
     if (-not $operations.Count -or @($operations | Where-Object { $null -eq $_.OperationID }).Count) {
@@ -68,7 +70,7 @@ try {
                 if ($Request.Mode -eq 'Pivot') { $statusRows = @(Get-PasPivotStatus -SMSProvider $Request.Provider -OperationID $operation.OperationID) }
                 else { $statusRows = @(Get-PasScriptRunStatus -CimSession $cim -SiteCode $Request.SiteCode -OperationID $operation.OperationID) }
                 $lastError = ''
-            } catch { if ($_.Exception.Data['StatusCode'] -ne 404) { $lastError = $_.Exception.Message }; continue }
+            } catch { if ($_.Exception.Data['StatusCode'] -ne 404) { $lastError = Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The result could not be requested from the site. The log file has the details.' -LogDetail }; continue }
             foreach ($status in $statusRows) {
                 # State 0 is a row that exists before the client reports.
                 if ([int]$status.ScriptExecutionState -eq 0) { continue }
@@ -91,7 +93,7 @@ try {
                     } else {
                         $rows = @(Convert-PasRows -Payload ([string]$status.ScriptOutput) -Device $job.Device -ResourceID $job.ResourceID)
                     }
-                } catch { $rows = @(); $failed = $true; $unreadable = 'The result could not be read: ' + $_.Exception.Message }
+                } catch { $rows = @(); $failed = $true; $unreadable = Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The result could not be read. The log file has the details.' -LogDetail }
                 $state = if ($Request.Mode -eq 'Pivot') { if ($failed) { 'Query failed' } else { 'Response received' } } else { if ($failed) { 'Script failed' } else { 'Response received' } }
                 if ($failedByStatus) { $detail = (@("Exit code $($status.ScriptExitCode), execution state $($status.ScriptExecutionState).", $errorText) | Where-Object { $_ }) -join ' ' }
                 if ($unreadable) { $detail = (@($detail, $unreadable) | Where-Object { $_ }) -join ' ' }
@@ -110,7 +112,11 @@ try {
         Start-Sleep -Milliseconds 3000
     }
     if ($Control.Stop) { foreach ($job in @($jobs.Values | Where-Object { -not $_.Finished })) { Send-Device $job 'Stopped waiting' 'The operation was sent and can still run on the device.' } }
-} catch { Send-Event 'Error' $_.Exception.Message }
+} catch {
+    # When the module did not load, its error text function does not exist; a fixed sentence replaces it.
+    $failure = if (Get-Command Get-PasUserErrorText -ErrorAction SilentlyContinue) { Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The operation failed. The log file has the details.' -LogDetail } else { 'The worker could not start. The log file has the details.' }
+    Send-Event 'Error' $failure
+}
 finally {
     if ($cim) { Remove-CimSession $cim }
     Send-Event 'Done' $null

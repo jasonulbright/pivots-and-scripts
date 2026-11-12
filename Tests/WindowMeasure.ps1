@@ -223,4 +223,78 @@ $script:MeasureFunctions = {
         }
         return $rows
     }
+
+    # The contrast of the first visible text of an element against its opaque backdrop (the parents are blended, selected
+    # and pressed states included). Returns $null when the element shows no text.
+    function Get-TextRatioOf($Element, $Window) {
+        $winBg = (Get-SolidColor $Window.Background)
+        $under = if ($winBg) { Merge-Color $winBg.Color $winBg.Opacity ([System.Windows.Media.Colors]::Black) } else { [System.Windows.Media.Colors]::White }
+        $worst = $null
+        foreach ($t in (Get-VisualDescendants $Element)) {
+            if ($t -isnot [System.Windows.Controls.TextBlock] -or [string]::IsNullOrWhiteSpace($t.Text) -or $t.ActualWidth -le 0) { continue }
+            $sc = Get-SolidColor $t.Foreground
+            if (-not $sc) { continue }
+            $backdrop = Get-BackdropColor $t $under $Window
+            $fgc = Merge-Color $sc.Color ((Get-ElementOpacity $t) * $sc.Opacity) $backdrop
+            $r = Get-ContrastRatio $fgc $backdrop
+            if ($null -eq $worst -or $r -lt $worst) { $worst = $r }
+        }
+        return $worst
+    }
+
+    # Puts a button in the hover or the pressed state without a mouse: the read-only properties are set through reflection.
+    function Set-ButtonProbe($Button, [string]$State, [bool]$On) {
+        $flags = [System.Reflection.BindingFlags]'NonPublic,Static,Public,Instance'
+        if ($State -eq 'Pressed') {
+            $setter = [System.Windows.Controls.Primitives.ButtonBase].GetProperty('IsPressed', $flags).GetSetMethod($true)
+            [void]$setter.Invoke($Button, @($On))
+        }
+        else {
+            $key = [System.Windows.UIElement].GetField('IsMouseOverPropertyKey', $flags).GetValue($null)
+            $Button.SetValue($key, $On)
+        }
+    }
+
+    function Get-StateContrast {
+        # Rows of Kind, Name and Ratio: the text of a selected list item, a selected grid row, the selected combo box item, and the text and
+        # the border of a hovered and a pressed button. The caller compares each row with 4.5 (text) or 3 (border).
+        param($Window)
+        $rows = @()
+        $list = $Window.FindName('library')
+        $list.ItemsSource = @([PSCustomObject]@{ BaseName = 'Disk space' }, [PSCustomObject]@{ BaseName = 'Operating system' })
+        $list.SelectedIndex = 0; Wait-Layout $Window 3
+        $item = $list.ItemContainerGenerator.ContainerFromIndex(0)
+        $rows += [PSCustomObject]@{ Kind = 'SelectedListItem'; Name = 'library'; Ratio = (Get-TextRatioOf $item $Window); Min = 4.5 }
+        $grid = $Window.FindName('results')
+        $grid.ItemsSource = @([PSCustomObject]@{ Device = 'PC01'; Value = 'one' }, [PSCustomObject]@{ Device = 'PC02'; Value = 'two' })
+        Wait-Layout $Window 3
+        $grid.SelectedIndex = 0; Wait-Layout $Window 3
+        $row = $grid.ItemContainerGenerator.ContainerFromIndex(0)
+        $rows += [PSCustomObject]@{ Kind = 'SelectedGridRow'; Name = 'results'; Ratio = (Get-TextRatioOf $row $Window); Min = 4.5 }
+        $combo = $Window.FindName('targetKind')
+        $combo.SelectedIndex = 1; $combo.IsDropDownOpen = $true; Wait-Layout $Window 4
+        $comboItem = $combo.ItemContainerGenerator.ContainerFromIndex(1)
+        $rows += [PSCustomObject]@{ Kind = 'SelectedComboItem'; Name = 'targetKind'; Ratio = (Get-TextRatioOf $comboItem $Window); Min = 4.5 }
+        $combo.IsDropDownOpen = $false; Wait-Layout $Window 2
+        foreach ($name in 'btnRun', 'btnConnect', 'btnOpen', 'btnPivot', 'btnOptions') {
+            $button = $Window.FindName($name)
+            if (-not $button -or -not (Test-VisibleInTree $button)) { continue }
+            foreach ($state in 'Hover', 'Pressed') {
+                Set-ButtonProbe $button $state $true; Wait-Layout $Window 2
+                try {
+                    $rows += [PSCustomObject]@{ Kind = ('{0}Text' -f $state); Name = $name; Ratio = (Get-TextRatioOf $button $Window); Min = 4.5 }
+                    if ($state -eq 'Hover') {
+                        $winBg = (Get-SolidColor $Window.Background)
+                        $under = if ($winBg) { Merge-Color $winBg.Color $winBg.Opacity ([System.Windows.Media.Colors]::Black) } else { [System.Windows.Media.Colors]::White }
+                        $outside = Get-BackdropColor $button $under $Window
+                        $bd = Get-VisualDescendants $button | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Name -eq 'Bd' } | Select-Object -First 1
+                        $bsc = Get-SolidColor $bd.BorderBrush
+                        $rows += [PSCustomObject]@{ Kind = 'HoverBorder'; Name = $name; Ratio = (Get-ContrastRatio (Merge-Color $bsc.Color $bsc.Opacity $outside) $outside); Min = 3.0 }
+                    }
+                }
+                finally { Set-ButtonProbe $button $state $false; Wait-Layout $Window 1 }
+            }
+        }
+        return $rows
+    }
 }

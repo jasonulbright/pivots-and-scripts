@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # The AdminService calls of the module: the request builder and error mapping (Invoke-PasAdminService),
 # the CMPivot start (Start-PasPivotRun) and the status pages (Get-PasPivotStatus). Invoke-RestMethod is
 # mocked; a mock body reads its fixtures from $global:Fx.
@@ -67,35 +67,41 @@ Describe 'Invoke-PasAdminService' {
         { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' -Method DELETE } | Should -Throw
         $global:Fx.Calls | Should -Be 0
     }
-    It 'maps an HTTP error with the message of the service: <Case>' -ForEach @(
-        @{ Case = 'OData error object'; Body = '{"error":{"code":"x","message":"Invalid query near ''foo''."}}'; Expected = "AdminService returned HTTP 400 (Bad Request). Invalid query near 'foo'." }
-        @{ Case = 'plain text';         Body = 'Something broke.';           Expected = 'AdminService returned HTTP 400 (Bad Request). Something broke.' }
-        @{ Case = 'JSON without error'; Body = '{"other":1}';                Expected = 'AdminService returned HTTP 400 (Bad Request). {"other":1}' }
-        @{ Case = 'JSON error without message'; Body = '{"error":{"code":"x"}}'; Expected = 'AdminService returned HTTP 400 (Bad Request). {"error":{"code":"x"}}' }
-        @{ Case = 'padded text';        Body = "  spaced  `r`n";             Expected = 'AdminService returned HTTP 400 (Bad Request). spaced' }
-        @{ Case = 'no body';            Body = '';                           Expected = 'AdminService returned HTTP 400 (Bad Request). The service returned no reason. Check the query syntax.' }
-        @{ Case = 'white space body';   Body = '   ';                        Expected = 'AdminService returned HTTP 400 (Bad Request). The service returned no reason. Check the query syntax.' }
+    It 'maps an HTTP error to a fixed message and writes the text of the service to the log file: <Case>' -ForEach @(
+        @{ Case = 'OData error object'; Body = '{"error":{"code":"x","message":"Invalid query near ''foo''."}}'; Detail = "Invalid query near 'foo'." }
+        @{ Case = 'plain text';         Body = 'Something broke.';           Detail = 'Something broke.' }
+        @{ Case = 'JSON without error'; Body = '{"other":1}';                Detail = '{"other":1}' }
+        @{ Case = 'JSON error without message'; Body = '{"error":{"code":"x"}}'; Detail = '{"error":{"code":"x"}}' }
+        @{ Case = 'padded text';        Body = "  spaced  `r`n";             Detail = 'spaced' }
+        @{ Case = 'no body';            Body = '';                           Detail = '' }
+        @{ Case = 'white space body';   Body = '   ';                        Detail = '' }
     ) {
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
         $global:Fx.Throw = New-FakeWebException -StatusCode 400 -Description 'Bad Request' -Body $Body
         $e = $null
-        try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception }
+        try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception } finally { Set-PasLogPath '' }
         $e | Should -BeOfType [InvalidOperationException]
-        $e.Message | Should -Be $Expected
+        $e.Message | Should -Be 'AdminService returned HTTP 400. The log file has the details.'
         $e.Data['StatusCode'] | Should -Be 400
         $e.InnerException | Should -BeOfType [Net.WebException]
+        $text = Get-Content -LiteralPath $log -Raw
+        $text | Should -Match '\[ERROR\] AdminService returned HTTP 400 \(Bad Request\) for p: '
+        $text | Should -BeLike "*for p: $Detail*"
     }
-    It 'adds no hint to an empty answer of status <Code>' -ForEach @(@{ Code = 401 }, @{ Code = 404 }, @{ Code = 500 }) {
-        $global:Fx.Throw = New-FakeWebException -StatusCode $Code -Description 'Status' -Body ''
+    It 'puts the status code and no text of the service in the message of status <Code>' -ForEach @(@{ Code = 401 }, @{ Code = 404 }, @{ Code = 500 }) {
+        $global:Fx.Throw = New-FakeWebException -StatusCode $Code -Description 'Status' -Body 'raw service text'
         $e = $null
         try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception }
-        $e.Message | Should -Be "AdminService returned HTTP $Code (Status)."
+        $e.Message | Should -Be "AdminService returned HTTP $Code. The log file has the details."
+        $e.Message | Should -Not -BeLike '*raw service text*'
         $e.Data['StatusCode'] | Should -Be $Code
     }
     It 'still reports the status when the error body cannot be read' {
         $global:Fx.Throw = New-FakeWebException -StatusCode 503 -Description 'Service Unavailable' -Body 'x' -BrokenStream
         $e = $null
         try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception }
-        $e.Message | Should -Be 'AdminService returned HTTP 503 (Service Unavailable).'
+        $e.Message | Should -Be 'AdminService returned HTTP 503. The log file has the details.'
         $e.Data['StatusCode'] | Should -Be 503
     }
     It 'rethrows a failure that has no response, such as a timeout, as it is' {
@@ -111,11 +117,14 @@ Describe 'Invoke-PasAdminService' {
         try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception }
         $e | Should -BeOfType [InvalidCastException]
     }
-    It 'shows a hostile error body as text only' {
+    It 'keeps a hostile error body out of the message and writes it to the log file as text only' {
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
         $global:Fx.Throw = New-FakeWebException -StatusCode 400 -Description 'Bad Request' -Body '<script>alert(1)</script> $(calc)'
         $e = $null
-        try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception }
-        $e.Message | Should -BeLike '*<script>alert(1)</script> $(calc)'
+        try { Invoke-PasAdminService -SMSProvider 'cm01' -RelativePath 'p' } catch { $e = $_.Exception } finally { Set-PasLogPath '' }
+        $e.Message | Should -Be 'AdminService returned HTTP 400. The log file has the details.'
+        (Get-Content -LiteralPath $log -Raw) | Should -BeLike '*<script>alert(1)</script> $(calc)*'
     }
     It 'returns nothing for an empty answer' {
         $global:Fx.Response = $null

@@ -24,10 +24,10 @@ The rights come from the Microsoft documentation of the features. The lab test o
 
 | Action | Right |
 |---|---|
-| Test connection, Resolve targets | Read access to the site, the devices and the collections. |
+| Test Connection, Resolve Targets | Read access to the site, the devices and the collections. |
 | Run CMPivot | **Run CMPivot** on the collection and **Read** on **Inventory Reports**. |
-| Submit script for approval | **Create** on **SMS Scripts**. |
-| Run approved script | **Run Script** on the collection. |
+| Submit Script for Approval | **Create** on **SMS Scripts**. |
+| Run Approved Script | **Run Script** on the collection. |
 | Approve or Deny a script | **Approve** on **SMS Scripts**. |
 | Remove a script | **Delete** on **SMS Scripts**. |
 | Computer | Trust of the certificate of the SMS Provider, for the administration service. |

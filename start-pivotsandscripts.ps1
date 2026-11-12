@@ -16,6 +16,9 @@ Import-Module $module -DisableNameChecking
 Import-Module (Join-Path $PSScriptRoot 'Lib\SuiteCommon\SuiteCommon.psd1') -DisableNameChecking
 $dataRoot=if($SmokeTest){Join-Path ([IO.Path]::GetTempPath()) ('PivotsAndScripts-smoke-'+[guid]::NewGuid().ToString('N'))}else{Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'SignalRidgeLabs\PivotsAndScripts'}
 $prefsPath=Join-Path $dataRoot 'preferences.json'
+# One log file for each day. The window and the worker write the raw text of an error here; the window never shows it.
+$logPath=Join-Path $dataRoot ('Logs\pivotsandscripts-'+(Get-Date -Format 'yyyyMMdd')+'.log')
+Set-PasLogPath $logPath
 $script:session=[pscustomobject]@{SchemaVersion=1;ID=[guid]::NewGuid().ToString();Created=[DateTime]::UtcNow.ToString('o');Steps=@()}
 $script:rows=[Collections.Generic.List[object]]::new();$script:states=@{};$script:rawRecords=[Collections.Generic.List[object]]::new()
 $script:sort=$null;$script:columnOrder=@{}
@@ -24,7 +27,7 @@ $script:drafts=@{Pivot='Disk | project Device, Name, FreeSpace';Script=''}
 $reader=[Xml.XmlNodeReader]::new([xml][IO.File]::ReadAllText((Join-Path $PSScriptRoot 'MainWindow.xaml')))
 $window=[Windows.Markup.XamlReader]::Load($reader)
 $ui=@{}
-foreach($name in @('btnPivot','btnScript','btnHistory','toggleTheme','txtThemeLabel','library','libraryFilter','btnOpen','btnSave','btnSaveSession','btnNewSession','heading','connectionInfo','btnOptions','btnSiteScripts','btnConnect','targetKind','targetInput','btnImport','btnResolve','targetSummary','btnTargets','editor','editorLabel','editorPosition','btnCheck','btnFind','findText','replaceText','btnReplace','btnRun','btnStop','btnSubmit','guidLabel','scriptGuid','btnParameters','resultFilter','btnCsv','btnJson','btnCopy','btnGrid','btnSelectionScript','btnSelectionPivot','results','devices','raw','pipeline','resultTabs','status')) { $ui[$name]=$window.FindName($name) }
+foreach($name in @('btnPivot','btnScript','btnHistory','toggleTheme','txtThemeLabel','library','libraryFilter','btnOpen','btnSave','btnSaveSession','btnNewSession','heading','connectionInfo','connectionPair','txtSiteCode','txtSmsProvider','btnOptions','btnSiteScripts','btnConnect','targetKind','targetInput','btnImport','btnResolve','targetSummary','btnTargets','editor','editorLabel','editorPosition','btnCheck','btnFind','findText','replaceText','btnReplace','btnRun','btnStop','btnSubmit','guidLabel','scriptGuid','btnParameters','resultFilter','btnCsv','btnJson','btnCopy','btnGrid','btnSelectionScript','btnSelectionPivot','results','devices','raw','pipeline','resultTabs','status')) { $ui[$name]=$window.FindName($name) }
 $script:prefs=Read-SuiteSettings -Path $prefsPath -Defaults @{SiteCode='';SMSProvider='';ApproveAfterSubmit=$false}
 # The suite launcher hands its site code and provider to each tool it starts.
 # A value saved in this tool wins; the launcher value fills an empty one; command-line values override both for this session only.
@@ -37,7 +40,13 @@ if($SMSProvider){$script:prefs.SMSProvider=$SMSProvider.Trim()}
 Initialize-SuiteTheme -Window $window -IsDarkGetter { $ui.toggleTheme.IsOn } -ActiveViewGetter {$script:mode} -ViewButtons @(@{Name='Pivot';Button=$ui.btnPivot},@{Name='Script';Button=$ui.btnScript}) -WorkflowButtons @($ui.btnPivot,$ui.btnScript) -OptionsButtons @($ui.btnHistory,$ui.btnOptions)
 [void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($window,'Dark.Steel')
 Install-TitleBarDragFallback -Window $window
-function Show-PasError { param($Message) $ui.status.Text=[string]$Message; Show-ThemedMessage -Title 'Error' -Message ([string]$Message) -Owner $window }
+function Show-PasError {
+    param($Message)
+    # $Message is a text or an error record. The text of an error record that this tool did not throw stays in the log file.
+    $text=if($null -eq $Message){''}elseif($Message -is [Management.Automation.ErrorRecord]){Get-PasUserErrorText -ErrorRecord $Message -Fallback 'The action failed. The log file has the details.' -LogDetail}else{[string]$Message}
+    $ui.status.Text=$text
+    Show-ThemedMessage -Title 'Error' -Message $text -Owner $window
+}
 function Save-PasPreview {
     param([string]$Name)
     $window.UpdateLayout()
@@ -78,8 +87,8 @@ function Set-PasMode {
     $script:mode=$Mode
     $scriptView=$Mode -eq 'Script'
     $ui.heading.Text=if($scriptView){'PowerShell'}else{'CMPivot'}
-    $ui.editorLabel.Text=if($scriptView){'Script draft editor'}else{'Query editor'}
-    $ui.btnRun.Content=if($scriptView){'Run approved script'}else{'Run CMPivot'}
+    $ui.editorLabel.Text=if($scriptView){'Script Draft Editor'}else{'Query Editor'}
+    $ui.btnRun.Content=if($scriptView){'Run Approved Script'}else{'Run CMPivot'}
     foreach($name in @('btnSubmit','guidLabel','scriptGuid','btnParameters','btnSiteScripts')) { $ui[$name].Visibility=if($scriptView){'Visible'}else{'Collapsed'} }
     Update-Library
     Set-PasHighlighting
@@ -111,7 +120,17 @@ function Save-PasSession {
     if($script:step -and $script:work -and $script:work.Action -eq 'Run'){$script:step.Results=@($script:rows);$script:step.Devices=@($script:states.Values);$script:step.Raw=@($script:rawRecords);$script:step.ResultCount=$script:rows.Count}
     Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session -Confirm:$false
 }
-function Update-PasConnectionInfo { [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates an in-window TextBlock only.')] param() $ui.connectionInfo.Text=if($script:prefs.SiteCode -and $script:prefs.SMSProvider){'Site '+$script:prefs.SiteCode+' on '+$script:prefs.SMSProvider}else{'Connection not set. Open Options.'} }
+function Update-PasConnectionInfo {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates in-window TextBlocks only.')]
+    param()
+    # The titles (Site Code, SMS Provider) are separate bold 14 pt TextBlocks in the XAML. Only the values change here.
+    $isSet=[bool]($script:prefs.SiteCode -and $script:prefs.SMSProvider)
+    $ui.txtSiteCode.Text=[string]$script:prefs.SiteCode
+    $ui.txtSmsProvider.Text=[string]$script:prefs.SMSProvider
+    $ui.connectionPair.Visibility=if($isSet){'Visible'}else{'Collapsed'}
+    $ui.connectionInfo.Visibility=if($isSet){'Collapsed'}else{'Visible'}
+    $ui.connectionInfo.Text='Connection not set. Open Options.'
+}
 function Get-PasRunScope { param($Request) if($Request.CollectionId){"Configuration Manager receives one operation for collection $($Request.CollectionId)."}else{"Configuration Manager receives one operation for this device list."} }
 function Get-PasParameterKey { Get-PasHash $ui.editor.Text }
 function Get-PasStepState {
@@ -124,12 +143,12 @@ function Start-PasWork {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Starts the background worker. The run, the submission and the removal are confirmed in a dialog before this function runs.')]
     param([string]$Action,[hashtable]$Extra=@{})
     if($script:work){throw 'An operation is already running.'}
-    $request=@{Module=$module;SiteCode=$script:prefs.SiteCode;Provider=$script:prefs.SMSProvider;Action=$Action;Kind=[string]$ui.targetKind.SelectedItem.Content;InputText=$ui.targetInput.Text;Mode=$script:mode;Text=$ui.editor.Text;Targets=@($script:targets);ScriptGuid=$ui.scriptGuid.Text;Parameters=$script:parameters.Clone();TimeoutSeconds=300;CollectionId=$script:targetCollectionId;AutoApprove=[bool]$script:prefs.ApproveAfterSubmit;Comment=''}
+    $request=@{Module=$module;SiteCode=$script:prefs.SiteCode;Provider=$script:prefs.SMSProvider;Action=$Action;Kind=[string]$ui.targetKind.SelectedItem.Content;InputText=$ui.targetInput.Text;Mode=$script:mode;Text=$ui.editor.Text;Targets=@($script:targets);ScriptGuid=$ui.scriptGuid.Text;Parameters=$script:parameters.Clone();TimeoutSeconds=300;CollectionId=$script:targetCollectionId;AutoApprove=[bool]$script:prefs.ApproveAfterSubmit;Comment='';LogPath=$logPath}
     foreach($key in $Extra.Keys){$request[$key]=$Extra[$key]}
     if(-not $request.SiteCode -or -not $request.Provider){throw 'Set the site code and SMS Provider in Options > Connection.'}
     if($Action -eq 'Run'){
-        if(-not $request.Targets.Count){throw 'Resolve targets first.'}
-        if($script:resolvedConnection -ne ($request.SiteCode+'|'+$request.Provider)){throw 'Connection changed. Resolve targets again.'}
+        if(-not $request.Targets.Count){throw 'Select Resolve Targets first.'}
+        if($script:resolvedConnection -ne ($request.SiteCode+'|'+$request.Provider)){throw 'Connection changed. Select Resolve Targets again.'}
         if([string]::IsNullOrWhiteSpace($request.Text)){throw 'The editor is empty.'}
         if($script:mode -eq 'Script'){
             $guid=[guid]::Empty
@@ -139,7 +158,7 @@ function Start-PasWork {
             $parameterText=if($request.Parameters.Count){($request.Parameters.Keys|Sort-Object|ForEach-Object{'  {0} = {1}' -f $_,$request.Parameters[$_]}) -join "`n"}else{'  (none; the script defaults apply)'}
             $message="Run ConfigMgr script $($guid.ToString().ToUpperInvariant()) on $($request.Targets.Count) resolved devices?`n$(Get-PasRunScope $request)`n`nParameters:`n$parameterText`n`nConfigMgr executes the approved site script identified by this GUID. An unsubmitted editor draft is not executed."
         } else {$message="Run this CMPivot query on $($request.Targets.Count) resolved devices?`n$(Get-PasRunScope $request)`n`n$($request.Text)"}
-        if(-not (Show-ConfirmDialog -Title 'Confirm target snapshot' -Message $message -Owner $window)){return}
+        if(-not (Show-ConfirmDialog -Title 'Confirm Target Snapshot' -Message $message -Owner $window)){return}
         # Column order and sort apply to one query; another query has other columns.
         if(-not $script:step -or $script:step.Text -ne $request.Text){$script:columnOrder=@{};$script:sort=$null}
         $script:rows.Clear();$script:states=New-PasDeviceTable $request.Targets;$script:rawRecords.Clear();$ui.raw.Clear()
@@ -169,7 +188,7 @@ $timer.Add_Tick({
             'ScriptChanged' {$ui.status.Text='Script '+$item.Value.ScriptGuid+': '+$item.Value.State+'.'}
             'Row' {$script:rows.Add($item.Value);$changed=$true}
             'Device' {$previous=$script:states[[string]$item.Value.ResourceID];$next=$item.Value;if($previous -and $previous.PSObject.Properties['Client']){$next|Add-Member -NotePropertyName Client -NotePropertyValue $previous.Client -Force;$next|Add-Member -NotePropertyName Active -NotePropertyValue $previous.Active -Force};$script:states[[string]$next.ResourceID]=$next;$changed=$true}
-            'Raw' {$script:rawRecords.Add($item.Value);try{$ui.raw.AppendText((ConvertTo-Json -InputObject $item.Value -Depth 20)+"`r`n")}catch{$ui.raw.AppendText("Raw record for $($item.Value.Device) could not be shown: $($_.Exception.Message)`r`n")}}
+            'Raw' {$script:rawRecords.Add($item.Value);try{$ui.raw.AppendText((ConvertTo-Json -InputObject $item.Value -Depth 20)+"`r`n")}catch{$ui.raw.AppendText((Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The raw record could not be shown. The log file has the details.' -LogDetail)+"`r`n")}}
             'Notice' {$ui.status.Text=[string]$item.Value}
             'Error' {$script:work.HadError=$true;$ui.status.Text=[string]$item.Value}
         }
@@ -177,10 +196,10 @@ $timer.Add_Tick({
     if($changed){Refresh-PasResults}
     if($completed){
         try {$null=$script:work.PS.EndInvoke($script:work.Handle);$streamError=Get-PasWorkerError $script:work.PS;if($streamError){$script:work.HadError=$true;$ui.status.Text=$streamError}}
-        catch {$script:work.HadError=$true;$ui.status.Text=$_.Exception.Message}
+        catch {$script:work.HadError=$true;$ui.status.Text=Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The operation failed. The log file has the details.' -LogDetail}
         if($script:work.Action -eq 'Run'){
             $script:step.State=Get-PasStepState;$script:step.Ended=[DateTime]::UtcNow.ToString('o')
-            try {Save-PasSession} catch {$ui.status.Text='History save failed: '+$_.Exception.Message}
+            try {Save-PasSession} catch {$ui.status.Text=Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The history could not be saved. The log file has the details.' -LogDetail}
             if(-not $script:work.HadError){$ui.status.Text=('{0}. {1} rows; {2} device statuses. Review Devices for errors and nonresponses.' -f $script:step.State,$script:rows.Count,$script:states.Count)}
         }
         $script:work.PS.Dispose();$script:work.Runspace.Dispose();$script:work=$null
@@ -202,6 +221,9 @@ $ui.btnReplace.Add_Click({if($ui.findText.Text){
     $ui.status.Text=[string]$offsets.Count+' replacements.'
 }})
 $ui.editor.Options.HighlightCurrentLine=$false
+# Selected text: white text (IdealForeground) on the highlight blue, in both themes.
+$ui.editor.TextArea.SetResourceReference([ICSharpCode.AvalonEdit.Editing.TextArea]::SelectionBrushProperty,'MahApps.Brushes.Highlight')
+$ui.editor.TextArea.SetResourceReference([ICSharpCode.AvalonEdit.Editing.TextArea]::SelectionForegroundProperty,'MahApps.Brushes.IdealForeground')
 $ui.editor.Add_PreviewKeyDown({param($s,$e)
     if($e.Key -eq 'Space' -and ([Windows.Input.Keyboard]::Modifiers -band [Windows.Input.ModifierKeys]::Control)){
         $menu=[Windows.Controls.ContextMenu]::new()
@@ -215,13 +237,13 @@ $ui.btnOpen.Add_Click({try{$path=Get-PasFilePath 'Queries and scripts|*.cmpivot;
 $ui.btnSave.Add_Click({try{$filter=if($script:mode -eq 'Script'){'PowerShell|*.ps1'}else{'CMPivot|*.cmpivot'};$path=Get-PasFilePath $filter -Save;if($path){[IO.File]::WriteAllText($path,$ui.editor.Text,[Text.UTF8Encoding]::new($true));Update-Library}}catch{Show-PasError $_}})
 $ui.btnConnect.Add_Click({try{Start-PasWork 'Connect'}catch{Show-PasError $_}})
 $ui.btnResolve.Add_Click({try{Start-PasWork 'Resolve'}catch{Show-PasError $_}})
-$ui.targetInput.Add_TextChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Targets changed. Resolve again.'})
-$ui.targetKind.Add_SelectionChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Target mode changed. Resolve again.'})
+$ui.targetInput.Add_TextChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Targets changed. Select Resolve Targets again.'})
+$ui.targetKind.Add_SelectionChanged({$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Target mode changed. Select Resolve Targets again.'})
 $ui.btnTargets.Add_Click({$ui.resultTabs.SelectedIndex=1})
 $ui.btnImport.Add_Click({try{$path=Get-PasFilePath 'Device lists|*.txt;*.csv';if($path){$text=if([IO.Path]::GetExtension($path) -eq '.csv'){$csv=@(Import-Csv -LiteralPath $path);if($csv.Count -and -not $csv[0].PSObject.Properties['Device']){throw 'CSV requires a Device column.'};($csv.Device -join "`r`n")}else{[IO.File]::ReadAllText($path)};$ui.targetKind.SelectedIndex=3;$ui.targetInput.Text=$text}}catch{Show-PasError $_}})
 $ui.btnRun.Add_Click({try{Start-PasWork 'Run'}catch{Show-PasError $_}})
 $ui.btnStop.Add_Click({if($script:work){$script:work.Control.Stop=$true;$script:work.Stopped=$true;$ui.status.Text='Stopping local waiting. Operations already sent may continue on clients.'}})
-$ui.btnSubmit.Add_Click({try{$params=@(Get-PasParameters $ui.editor.Text);Assert-PasScriptParameters $params;$names=if($params.Count){"`n`nParameters stored with the script: "+(($params|ForEach-Object{'{0} ({1})' -f $_.Name,$_.SiteType.Split('.')[-1]}) -join ', ')}else{''};if(Show-ConfirmDialog -Title 'Create ConfigMgr script' -Message ("Create a managed script from the editor text? It will require the approval configured by your site."+$names) -Owner $window){Start-PasWork 'Submit'}}catch{Show-PasError $_}})
+$ui.btnSubmit.Add_Click({try{$params=@(Get-PasParameters $ui.editor.Text);Assert-PasScriptParameters $params;$names=if($params.Count){"`n`nParameters stored with the script: "+(($params|ForEach-Object{'{0} ({1})' -f $_.Name,$_.SiteType.Split('.')[-1]}) -join ', ')}else{''};if(Show-ConfirmDialog -Title 'Create ConfigMgr Script' -Message ("Create a managed script from the editor text? It will require the approval configured by your site."+$names) -Owner $window){Start-PasWork 'Submit'}}catch{Show-PasError $_}})
 . (Join-Path $PSScriptRoot 'Module\ParameterDialog.ps1')
 $ui.btnParameters.Add_Click({try{Show-PasParameterDialog}catch{Show-PasError $_}})
 . (Join-Path $PSScriptRoot 'Module\OptionsDialog.ps1')
@@ -259,7 +281,7 @@ $ui.btnCopy.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-
     # Base64 keeps endpoint text out of PowerShell quoting; U+2018/U+2019 also close single-quoted strings.
     $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $rows -Depth 20 -Compress)))
     [Windows.Clipboard]::SetText("[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$encoded')) | ConvertFrom-Json");$ui.status.Text=[string]$rows.Count+' rows copied as PowerShell.'}catch{Show-PasError $_}})
-$ui.btnGrid.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to show.'};$rows|Out-GridView -Title 'Pivots and Scripts results'}catch{Show-PasError $_}})
+$ui.btnGrid.Add_Click({try{$rows=Get-PasVisibleRows $ui.results.ItemsSource;if(-not $rows.Count){throw 'There are no results to show.'};$rows|Out-GridView -Title 'Pivots and Scripts Results'}catch{Show-PasError $_}})
 $ui.btnSaveSession.Add_Click({try{Save-PasSession;$path=Get-PasFilePath 'Session JSON|*.json' -Save;if($path){Write-PasJson $path $script:session -Confirm:$false}}catch{Show-PasError $_}})
 $ui.btnNewSession.Add_Click({try{Save-PasSession;$script:session=[pscustomobject]@{SchemaVersion=1;ID=[guid]::NewGuid().ToString();Created=[DateTime]::UtcNow.ToString('o');Steps=@()};$script:step=$null;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();$ui.raw.Clear();Refresh-PasResults}catch{Show-PasError $_}})
 $ui.btnHistory.Add_Click({try{$path=Get-PasFilePath 'Session JSON|*.json';if($path){$loaded=[IO.File]::ReadAllText($path)|ConvertFrom-Json;if($loaded.SchemaVersion -ne 1 -or [string]$loaded.ID -notmatch '^[a-fA-F0-9-]{36}$'){throw 'Unsupported session file.'};$script:session=$loaded;$script:step=@($loaded.Steps)|Select-Object -Last 1;$script:rows.Clear();$script:states=@{};$script:rawRecords.Clear();if($script:step){foreach($row in @($script:step.Results)){$script:rows.Add($row)};foreach($item in @($script:step.Devices)){$script:states[[string]$item.ResourceID]=$item};Set-PasMode $script:step.Mode;$ui.editor.Text=$script:step.Text;$ui.raw.Text=$script:step.Raw|ConvertTo-Json -Depth 20};$script:targets=@();$script:targetCollectionId='';$ui.targetSummary.Text='Historical session opened. Resolve fresh targets before running.';Refresh-PasResults}}catch{Show-PasError $_}})
@@ -268,7 +290,7 @@ $window.Add_SourceInitialized({Set-ButtonTheme -IsDark $ui.toggleTheme.IsOn;Upda
 $window.Add_Closing({param($s,$e) if($script:work){$e.Cancel=$true;$script:work.Control.Stop=$true;$script:work.Stopped=$true;$ui.status.Text='Stopping local waiting. Close again after the worker finishes.';return};try{Save-PasSession;Save-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')}catch{if($SmokeTest){[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'work\smoke.log'),$_.ToString())}else{$e.Cancel=$true;Show-PasError $_}}})
 Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')
 Update-PasConnectionInfo;Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
-if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;if($ui.connectionInfo.Text -notmatch 'Connection not set|Site '){throw 'Connection label missing.'};Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
+if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;if($ui.connectionInfo.Visibility -eq 'Collapsed' -and $ui.connectionPair.Visibility -eq 'Collapsed'){throw 'Connection label missing.'};Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
 # Suite update notice: one shared daily lookup across the suite tools; the launcher installs.
 $null = Start-SuiteUpdateNotice -Path $PSScriptRoot -OnResult { param($u) if ($u.Available) { $ui.status.Text = ('Suite update available: v{0}. Update from the AppPackager Suite Launcher.' -f $u.Latest) } }
 try{$window.ShowDialog()|Out-Null}finally{$timer.Stop()}

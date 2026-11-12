@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Every ConfigMgr cmdlet call in the module names only parameters that the real
 # cmdlet has. Mocks accept any parameter name the test stub declares, so a wrong
 # parameter name passes a mocked test and fails on a site. This test checks against

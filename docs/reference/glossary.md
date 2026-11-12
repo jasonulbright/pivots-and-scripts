@@ -30,7 +30,7 @@ None.
 | Run Scripts | The Configuration Manager feature that runs an approved PowerShell script on devices. |
 | Script GUID | The identifier of a script on the site. |
 | Session | The saved record of all steps of one work period. |
-| Site code | The 3-character code of a Configuration Manager site. |
+| Site Code | The 3-character code of a Configuration Manager site. |
 | SMS Provider | The server role that gives access to the site data. |
 | Snapshot | The fixed list of resolved devices. |
 | Step | One run in a session: a CMPivot query or a script, with its targets and results. |

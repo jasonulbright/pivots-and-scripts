@@ -39,18 +39,34 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = $PSScriptRoot
+$root = $PSScriptRoot.TrimEnd('\')
 $failed = $false
+# Every path filter works on the path relative to the repository root. The walk never enters .git, .claude (it holds
+# worktrees of this repository, which have their own Tests folder) or the output folders.
+$skipTop = @('.git', '.claude', 'TestOutput', 'Logs', 'Reports')
+function Get-RepoFile {
+    param([string]$Filter)
+    foreach ($top in @(Get-ChildItem -LiteralPath $root -Force)) {
+        if ($skipTop -contains $top.Name) { continue }
+        if ($top.PSIsContainer) { Get-ChildItem -LiteralPath $top.FullName -Filter $Filter -File -Recurse }
+        elseif ($top.Name -like $Filter) { $top }
+    }
+}
+function Get-RelativePath {
+    param([string]$FullName)
+    return $FullName.Substring($root.Length).TrimStart('\')
+}
 
-Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop
+# Pester 5 only: Pester 6 fails a test file that has an empty -ForEach list.
+Import-Module Pester -MinimumVersion 5.0 -MaximumVersion 5.99.99 -ErrorAction Stop
 
 # ---- 1. Lint ---------------------------------------------------------------
 if (-not $SkipLint) {
     Import-Module PSScriptAnalyzer -ErrorAction Stop
     $targets = @(
-        Get-ChildItem -LiteralPath (Join-Path $root 'Module') -Include '*.psm1', '*.psd1', '*.ps1' -File -Recurse
+        Get-RepoFile -Filter '*.ps*1' | Where-Object { $_.Extension -in '.psm1', '.psd1', '.ps1' -and (Get-RelativePath $_.FullName) -like 'Module\*' }
         Get-ChildItem -LiteralPath $root -Filter 'start-*.ps1' -File
-        Get-ChildItem -LiteralPath (Join-Path $root 'Tests') -Filter '*.ps1' -File -Recurse
+        Get-RepoFile -Filter '*.ps1' | Where-Object { (Get-RelativePath $_.FullName) -like 'Tests\*' }
         Get-Item -LiteralPath (Join-Path $root 'Invoke-Checks.ps1')
     )
     $settings = Join-Path $root 'Tests\PSScriptAnalyzerSettings.psd1'
@@ -58,8 +74,7 @@ if (-not $SkipLint) {
     $testOnlyExclude = 'PSAvoidGlobalVars', 'PSUseDeclaredVarsMoreThanAssignments', 'PSUseShouldProcessForStateChangingFunctions'
     $findings = @(foreach ($t in $targets) {
         # Classify by the path below the repository root, so a checkout under a folder named Tests is not read as test code.
-        $relative = $t.FullName.Substring($root.Length)
-        if ($relative -like '\Tests\*' -or $t.Name -like '*.Tests.ps1') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
+        if ((Get-RelativePath $t.FullName) -like 'Tests\*' -or $t.Name -like '*.Tests.ps1') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
         else { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings }
     })
     $blocking = @($findings | Where-Object { $_.Severity -in 'Error', 'Warning' })
@@ -70,8 +85,8 @@ if (-not $SkipLint) {
 
 # ---- 2. Tests and coverage -------------------------------------------------
 $cfg = New-PesterConfiguration
-$testFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.Tests.ps1' -File |
-        Where-Object { $_.FullName -notlike '*\Tests\Lab\*' -and $_.FullName -notlike '*\.git\*' })
+$testFiles = @(Get-RepoFile -Filter '*.Tests.ps1' |
+        Where-Object { (Get-RelativePath $_.FullName) -notlike 'Tests\Lab\*' -and (Get-RelativePath $_.FullName) -notlike 'Lib\*' })
 if ($testFiles.Count -eq 0) { Write-Host 'No test file found.'; exit 1 }
 # Window tests open windows. They run only where the guard allows it (see Tests\WindowHarness.ps1).
 . (Join-Path $root 'Tests\WindowHarness.ps1')

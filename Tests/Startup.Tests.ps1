@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Start-up without the ConfigMgr console: the message is plain text, the call
 # returns $false, and no raw exception reaches the user on the not-found path.
 # The branch for a module that is found but fails to import logs the caught error in the

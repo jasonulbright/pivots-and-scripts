@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Starts the real start script in Windows PowerShell with -SmokeTest: the window opens, switches themes
 # and modes, shows the three dialogs, closes, and the script checks its own log. This is the test that was
 # in Core.Tests.ps1 before the suite was added.

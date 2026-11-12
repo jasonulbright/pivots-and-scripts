@@ -12,7 +12,7 @@ Use it before every run, and again after you change the connection or the target
 
 ## Requirements
 
-- A connection that passes **Test connection**. See [Getting started](../getting-started.md).
+- A connection that passes **Test Connection**. See [Getting started](../getting-started.md).
 - The right to read devices and collections on the site.
 
 ## Steps
@@ -21,7 +21,7 @@ Use it before every run, and again after you change the connection or the target
 
 1. Select the kind in the list on the left of the target box: **Collection**, **Device**, **Pattern** or **List**.
 2. Type the input in the target box. See the table below.
-3. Select **Resolve targets**.
+3. Select **Resolve Targets**.
 4. Read the line under the box: `Matched`, `Active`, `Not clients` and `Unknown`.
 
 | Kind | Input |
@@ -43,14 +43,14 @@ A name that does not exist in Configuration Manager counts as **Unknown**. The u
 
 ### Read the snapshot
 
-Select **View snapshot**. The tool opens the **Devices** tab.
+Select **View Snapshot**. The tool opens the **Devices** tab.
 
 ![The Devices tab after View snapshot](../images/targets-snapshot.png)
 
 ### Import a list
 
 1. Select **List** in the kind list.
-2. Select **Import list**.
+2. Select **Import List**.
 3. Pick a TXT file with one device name on each line, or a CSV file with a `Device` column.
 
 ![The Open dialog of Import list](../images/dialog-import-list.png)
@@ -59,7 +59,7 @@ The names fill the target box.
 
 ![The target box after the import](../images/import-list.png)
 
-Select **Resolve targets** to make the snapshot.
+Select **Resolve Targets** to make the snapshot.
 
 ### Change the text
 
@@ -73,9 +73,9 @@ When you change the kind or the text, the snapshot is no longer valid. The line 
 |---|---|
 | Kind list | Chooses Collection, Device, Pattern or List. |
 | Target box | Holds the input. |
-| **Import list** | Reads names from a TXT or CSV file. |
-| **Resolve targets** | Makes the snapshot. |
-| **View snapshot** | Opens the Devices tab. |
+| **Import List** | Reads names from a TXT or CSV file. |
+| **Resolve Targets** | Makes the snapshot. |
+| **View Snapshot** | Opens the Devices tab. |
 
 ## Limits
 
@@ -89,8 +89,8 @@ When you change the kind or the text, the snapshot is no longer valid. The line 
 |---|---|---|
 | `Enter a target.` | The target box is empty. | Type a target. |
 | `Collection '<name>' must resolve to exactly one device collection.` | No collection, or more than one, has that name or ID. | Use the collection ID. |
-| `Connection changed. Resolve targets again.` | You changed the connection after Resolve. | Select **Resolve targets**. |
-| `Resolve targets first.` | You selected Run before you resolved. | Select **Resolve targets**. |
+| `Connection changed. Select Resolve Targets again.` | You changed the connection after Resolve. | Select **Resolve Targets**. |
+| `Select Resolve Targets first.` | You selected Run before you resolved. | Select **Resolve Targets**. |
 
 ## Links
 

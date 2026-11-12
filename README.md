@@ -41,7 +41,7 @@ The app uses your Windows identity. It stores no credentials.
 
 ### Connect and resolve targets
 
-Set the site code and the SMS Provider name in **Options > Connection**, then select **Test connection**. The window header shows the active connection. A value saved in Options wins. The suite launcher fills an empty value through `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The `-SiteCode` and `-SMSProvider` command-line parameters override both for one session.
+Set the **Site Code** and the **SMS Provider** name in **Options > Connection**, then select **Test Connection**. The line under the heading shows the bold titles **Site Code** and **SMS Provider** with their values. Before you set them, it shows `Connection not set.` and a note to open Options. A value saved in Options wins. The suite launcher fills an empty value through `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The `-SiteCode` and `-SMSProvider` command-line parameters override both for one session.
 
 ![Options, Connection](screenshots/options-connection.png)
 
@@ -52,7 +52,7 @@ Resolve targets in one of four ways:
 | Collection | A collection ID such as `SMS00001`, or the exact collection name. |
 | Device | One device name. Wildcard characters are literal. |
 | Pattern | A device name with wildcards, for example `CLIENT*`. |
-| List | Device names separated by commas, semicolons or lines. **Import** reads a TXT file, or a CSV file with a `Device` column. |
+| List | Device names separated by commas, semicolons or lines. **Import List** reads a TXT file, or a CSV file with a `Device` column. |
 
 The target snapshot is fixed until you resolve again.
 
@@ -66,17 +66,17 @@ Open a query from the library, open a `.cmpivot` or `.kql` file, or type the que
 
 Run Scripts executes only scripts that Configuration Manager has approved. Configuration Manager enforces the approval rules; the app never changes hierarchy settings.
 
-1. Write or open a script. **Check** validates the PowerShell syntax.
-2. **Submit** creates the script in Configuration Manager. The app stores the parameter definitions from the `param()` block with the script, so the site can pass values to it. The script waits for approval.
-3. Obtain approval. **Site scripts** lists the scripts on the site with state, author and approver. An account with **Approve** on **SMS Scripts** can approve or deny a script there, with a comment, or remove it. By default, the site does not let an author approve or deny their own script; the app shows that reason. Scripts that belong to a Configuration Manager feature, such as the built-in CMPivot script, are not listed and cannot be changed.
+1. Write or open a script. **Check Syntax** validates the PowerShell syntax.
+2. **Submit Script for Approval** creates the script in Configuration Manager. The app stores the parameter definitions from the `param()` block with the script, so the site can pass values to it. The script waits for approval.
+3. Obtain approval. **Site Scripts** lists the scripts on the site with state, author and approver. An account with **Approve** on **SMS Scripts** can approve or deny a script there, with a comment, or remove it. By default, the site does not let an author approve or deny their own script; the app shows that reason. Scripts that belong to a Configuration Manager feature, such as the built-in CMPivot script, are not listed and cannot be changed.
 4. **Parameters** shows a field for each parameter, with its default value.
-5. **Run approved script** lists the script GUID and the parameter values, then runs the approved site script on the targets. The editor text is not sent; changes after submission need a new submission and approval.
+5. **Run Approved Script** lists the script GUID and the parameter values, then runs the approved site script on the targets. The editor text is not sent; changes after submission need a new submission and approval.
 
-**Options > Run Scripts > Approve scripts after submission** approves each new script right after Submit. It is off by default. It works only where the site lets authors approve their own scripts; Microsoft recommends that setting only in a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.
+**Options > Run Scripts > Approve scripts after submission** approves each new script right after **Submit Script for Approval**. It is off by default. It works only where the site lets authors approve their own scripts; Microsoft recommends that setting only in a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.
 
 Parameter rules, from the Run Scripts feature:
 
-- Only string and integer parameters work. The site refuses switch parameters. Submit refuses switch, bool and other types.
+- Only string and integer parameters work. The site refuses switch parameters. **Submit Script for Approval** refuses switch, bool and other types.
 - A value cannot contain a single quote. The client script fails on it.
 - A script holds at most 10 parameters.
 - The site drops values for names it does not define. The app refuses such names before submission. A script created without parameter definitions cannot receive values; the app says so.
@@ -84,7 +84,7 @@ Parameter rules, from the Run Scripts feature:
 
 The Devices tab shows **Script failed** with the exit code when a script fails on a device.
 
-![Script parameters](screenshots/parameters.png)
+![Script Parameters](screenshots/parameters.png)
 
 ![Run confirmation](screenshots/confirm-run.png)
 
@@ -107,11 +107,13 @@ Select result rows and choose **Selection to Pivot** or **Selection to Script** 
 
 ![Light theme](screenshots/main-light.png)
 
-**Stop waiting** stops local submission and polling. Operations that the site already received can still run on devices. A device without a result after 300 seconds shows **No response within timeout**; the device can still run the operation. On the site, a script run times out after one hour. Closing the window during a run stops waiting first; close again when the worker ends.
+The light theme and the dark theme differ in colors only. Every blue box has white text in both themes.
+
+**Stop Waiting** stops local submission and polling. Operations that the site already received can still run on devices. A device without a result after 300 seconds shows **No response within timeout**; the device can still run the operation. On the site, a script run times out after one hour. Closing the window during a run stops waiting first; close again when the worker ends.
 
 ## Storage
 
-Queries and scripts are ordinary files in `Library\` or any folder you choose. Preferences, window position and sessions are stored in `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. A session is saved before the first operation is sent. Each step records the query or script text and hash, operator, site, provider, parameters, targets, timestamps, raw responses, device states and results. **Open session** opens a saved session; it does not run anything again.
+Queries and scripts are ordinary files in `Library\` or any folder you choose. Preferences, window position and sessions are stored in `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. A session is saved before the first operation is sent. Each step records the query or script text and hash, operator, site, provider, parameters, targets, timestamps, raw responses, device states and results. **Open Session** opens a saved session; it does not run anything again.
 
 ## Limits
 

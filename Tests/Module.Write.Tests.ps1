@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.1.0' }
 # Write actions of the module, with every ConfigMgr call mocked: create a script with its parameters,
 # approve, deny and remove a script, start a Run Scripts operation, save a JSON file. Each action has a
 # success case, a failure case, a partial-failure case (a step after the first one fails), a -WhatIf
@@ -105,8 +105,11 @@ Describe 'New-PasManagedScript' {
     It 'removes the script and says so when the site refuses the definition (return value <Code>)' -ForEach @(@{ Code = 1 }, @{ Code = 5 }, @{ Code = -1 }) {
         $global:Fx.UpdateReturn = $Code
         $message = $null
-        try { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } catch { $message = $_.Exception.Message }
-        $message | Should -BeLike "Script parameters could not be stored: SMS_Scripts.UpdateScript returned $Code. The incomplete script was removed."
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } catch { $message = $_.Exception.Message } finally { Set-PasLogPath '' }
+        $message | Should -Be 'Script parameters could not be stored. The log file has the details. The incomplete script was removed.'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match "SMS_Scripts.UpdateScript returned $Code\."
         $rm = @($global:Fx.Calls | Where-Object Cmd -eq 'Remove')
         $rm.Count | Should -Be 1
         $rm[0].Item.ScriptGuid | Should -Be '11111111-2222-3333-4444-555555555555'
@@ -115,12 +118,18 @@ Describe 'New-PasManagedScript' {
     }
     It 'removes the script when the definition read back does not match' {
         $global:Fx.Mismatch = $true
-        { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } | Should -Throw '*do not match*'
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } | Should -Throw '*could not be stored. The log file has the details.*' } finally { Set-PasLogPath '' }
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'do not match'
         @($global:Fx.Calls | Where-Object Cmd -eq 'Remove').Count | Should -Be 1
     }
     It 'removes the script when the update call throws' {
         $global:Fx.UpdateThrows = 'RPC failed'
-        { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } | Should -Throw '*RPC failed*'
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } | Should -Throw '*could not be stored. The log file has the details.*' } finally { Set-PasLogPath '' }
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'RPC failed'
         @($global:Fx.Calls | Where-Object Cmd -eq 'Remove').Count | Should -Be 1
         @($global:Fx.Calls | Where-Object Cmd -eq 'RemoveSession').Count | Should -Be 1
     }
@@ -129,7 +138,7 @@ Describe 'New-PasManagedScript' {
         $global:Fx.RemoveThrows = 'access denied'
         $message = $null
         try { New-PasManagedScript -Text 'param($A)' -SMSProvider 'cm01' -SiteCode 'MCM' } catch { $message = $_.Exception.Message }
-        $message | Should -BeLike '*returned 9. Remove script 11111111-2222-3333-4444-555555555555 in the console.'
+        $message | Should -Be 'Script parameters could not be stored. The log file has the details. Remove script 11111111-2222-3333-4444-555555555555 in the console.'
     }
     It 'refuses script text that cannot be stored before it creates anything: <Case>' -ForEach @(
         @{ Case = 'a switch parameter';  Text = 'param([switch]$A)';          Pattern = '*string and integer*' }
@@ -250,13 +259,17 @@ Describe 'Set-PasScriptApproval' {
         $global:Fx.GetThrows = 'The SMS Provider is unavailable.'
         { Set-PasScriptApproval -ScriptGuid ([guid]$script:Guid) -Decision Approve } | Should -Throw '*SMS Provider is unavailable*'
     }
-    It 'explains a refused self-approval and keeps the provider message' {
+    It 'explains a refused self-approval and writes the provider message to the log file only' {
         $global:Fx.Item = [pscustomobject]@{ ScriptGuid = $script:Guid; Feature = 0; Author = $global:Fx.Me.ToUpperInvariant(); ApprovalState = 0 }
         $global:Fx.ActionThrows = 'The SMS Provider reported an error.'
         $message = ''
-        try { Set-PasScriptApproval -ScriptGuid ([guid]$script:Guid) -Decision Approve } catch { $message = $_.Exception.Message }
+        $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.log')
+        Set-PasLogPath $log
+        try { Set-PasScriptApproval -ScriptGuid ([guid]$script:Guid) -Decision Approve } catch { $message = $_.Exception.Message } finally { Set-PasLogPath '' }
         $message | Should -BeLike '*second approver*'
-        $message | Should -BeLike '*The SMS Provider reported an error*'
+        $message | Should -BeLike '*The log file has the details.'
+        $message | Should -Not -BeLike '*The SMS Provider reported an error*'
+        (Get-Content -LiteralPath $log -Raw) | Should -Match 'The SMS Provider reported an error'
     }
     It 'rethrows the provider error when somebody else wrote the script' {
         $global:Fx.ActionThrows = 'The SMS Provider reported an error.'

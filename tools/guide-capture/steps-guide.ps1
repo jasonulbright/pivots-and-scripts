@@ -132,7 +132,7 @@ Section 'script view' {
     Log ('status after submit No: ' + (Status)); Shot $win 'submit-cancelled'
     Invoke-El (Get-El $win 'btnRun'); Answer 'run-script-no-guid' 'btnPrimary'
     Invoke-El (Get-El $win 'btnSiteScripts'); Start-Sleep -Seconds 3
-    $sd = Find-Last 'Site scripts' 15; Start-Sleep -Seconds 4; Shot $sd 'dialog-site-scripts'; Dump-Tree $sd 'site-scripts'
+    $sd = Find-Last 'Site Scripts' 15; Start-Sleep -Seconds 4; Shot $sd 'dialog-site-scripts'; Dump-Tree $sd 'site-scripts'
     Invoke-El (Get-El $sd 'Close'); Start-Sleep -Seconds 1
     Set-Text (Get-El $win 'scriptGuid') '11111111-2222-3333-4444-555555555555'; Start-Sleep -Milliseconds 500
     Invoke-El (Get-El $win 'btnRun'); Answer 'confirm-run-script' 'btnNo'

@@ -18,7 +18,7 @@ None. A session needs at least one run to hold data.
 
 ### Save a session to a file
 
-1. Select **Save session**.
+1. Select **Save Session**.
 2. In the Save As dialog, pick a folder and a name, and select **Save**.
 
 ![The Save As dialog of Save session](../images/dialog-save-session.png)
@@ -27,13 +27,13 @@ None. A session needs at least one run to hold data.
 
 ### Start a new session
 
-Select **New session**. The tool saves the current session, clears the results and starts an empty session.
+Select **New Session**. The tool saves the current session, clears the results and starts an empty session.
 
 ![The window after New session](../images/session-new.png)
 
 ### Open an earlier session
 
-1. Select **Open session** in the sidebar.
+1. Select **Open Session** in the sidebar.
 2. Pick a session file and select **Open**.
 
 ![The Open dialog of Open session](../images/dialog-open-session.png)
@@ -42,7 +42,7 @@ The tool shows the last step of the session: the mode, the text, the results, th
 
 ![The window after Open session](../images/session-opened.png)
 
-Open session does not run anything again.
+**Open Session** does not run anything again.
 
 ### Reopen the tool
 
@@ -54,9 +54,9 @@ The tool saves the window position and size when you close it. The next start us
 
 | Control | Effect |
 |---|---|
-| **Save session** | Writes the session to a JSON file that you pick. |
-| **New session** | Saves the current session and starts an empty one. |
-| **Open session** | Reads a session file. |
+| **Save Session** | Writes the session to a JSON file that you pick. |
+| **New Session** | Saves the current session and starts an empty one. |
+| **Open Session** | Reads a session file. |
 
 ## Limits
 
@@ -69,7 +69,7 @@ The tool saves the window position and size when you close it. The next start us
 | Message or symptom | Cause | Fix |
 |---|---|---|
 | `Unsupported session file.` | The file is not a session file of this tool. | Pick another file. |
-| `History save failed: ...` | The tool cannot write to its data folder. | Check the rights on the folder. |
+| `The history could not be saved. The log file has the details.` | The tool cannot write to its data folder. | Check the rights on the folder. Read the log file. |
 
 ## Links
 

@@ -14,9 +14,9 @@ Use it to open the firewall for the tool, to set up the certificate trust, or to
 
 | Call | Target | When | Content |
 |---|---|---|---|
-| ConfigurationManager module | The SMS Provider in **Options > Connection**. | Test connection, Resolve targets, Submit, Run for scripts. | Device and collection reads, and the script commands of the console module. |
+| ConfigurationManager module | The SMS Provider in **Options > Connection**. | Test Connection, Resolve Targets, Submit Script for Approval, Run Approved Script. | Device and collection reads, and the script commands of the console module. |
 | Administration service over HTTPS | `https://<provider>/AdminService/v1.0/` | Run CMPivot and the result reads, every 3 seconds. | The query, the target list and the status reads. |
-| WMI over DCOM (CIM) | The SMS Provider, namespace `root\SMS\site_<code>`. | Site scripts, script runs and script results. | Reads of `SMS_Scripts` and `SMS_ScriptsExecutionStatus`. |
+| WMI over DCOM (CIM) | The SMS Provider, namespace `root\SMS\site_<code>`. | Site Scripts, script runs and script results. | Reads of `SMS_Scripts` and `SMS_ScriptsExecutionStatus`. |
 | `https://api.github.com/repos/<repository>/releases/latest` | HTTPS to GitHub. | At the start, once a day, only when the suite installer installed the tool. | The check for a newer suite version. |
 
 ## Steps

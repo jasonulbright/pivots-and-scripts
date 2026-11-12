@@ -13,7 +13,7 @@ Use it to ask many devices one question now, for example the free disk space, th
 ## Requirements
 
 - Windows PowerShell 5.1 and .NET Framework 4.8.
-- The Configuration Manager console on the same computer. The tool imports the `ConfigurationManager` module of the console. Without the console, **Test connection** fails. See [Error messages](reference/error-messages.md).
+- The Configuration Manager console on the same computer. The tool imports the `ConfigurationManager` module of the console. Without the console, **Test Connection** fails. See [Error messages](reference/error-messages.md).
 - For CMPivot: the computer must trust the certificate of the SMS Provider. See [Permissions](reference/permissions.md) and [Network](reference/network.md).
 - Rights on the site. See [Permissions](reference/permissions.md).
 
@@ -30,18 +30,18 @@ The tool uses your Windows account. It stores no password.
 powershell.exe -NoProfile -STA -File .\start-pivotsandscripts.ps1
 ```
 
-The window opens on the **CMPivot** view with a sample query. The line above the target box says that the connection is not set.
+The window opens on the **CMPivot** view with a sample query. The line under the heading says `Connection not set.` and tells you to open Options.
 
 ![The window at the first start](images/start-first-run.png)
 
-If you select **Test connection** before you set the connection, a message tells you to open Options.
+If you select **Test Connection** before you set the connection, a message tells you to open Options.
 
 ![The message without a connection](images/connect-without-connection.png)
 
 ### Set the connection
 
 1. Select **Options** in the sidebar.
-2. Type the **Site code**, for example `MCM`. A site code has 3 characters.
+2. Type the **Site Code**, for example `MCM`. A site code has 3 characters.
 3. Type the **SMS Provider** name, for example `cm01.contoso.com`. Use the name that the certificate of the provider carries, normally the FQDN.
 4. Select **OK**.
 
@@ -49,13 +49,13 @@ If you select **Test connection** before you set the connection, a message tells
 
 ![The Connection page with values](images/options-connection.png)
 
-The header now shows `Site MCM on cm01.contoso.com`.
+The line under the heading now shows the bold titles **Site Code** and **SMS Provider**, each with its value: `MCM` and `cm01.contoso.com`.
 
 ![The window with the connection set](images/connection-set.png)
 
 ### Test the connection
 
-1. Select **Test connection**. The status line shows `Working...`.
+1. Select **Test Connection**. The status line shows `Working...`.
 
 ![The window while the test runs](images/connect-running.png)
 
@@ -69,7 +69,7 @@ If the provider does not host the site code, the status line says so.
 
 ### If the console is missing
 
-On a computer without the console, **Test connection** ends with a message in the status line. The test copy of this guide removed the module lookup to show it.
+On a computer without the console, **Test Connection** ends with a message in the status line. The test copy of this guide removed the module lookup to show it.
 
 ![The status line without the console](images/console-missing-connect.png)
 

@@ -1,6 +1,6 @@
 # Error messages
 
-This page lists the messages of Pivots and Scripts with cause and fix. A message shows in a box titled `Error` and in the status line.
+This page lists the messages of Pivots and Scripts with cause and fix. A message shows in a box titled `Error` and in the status line. The Options dialog uses the box title `Options Error`. The Site Scripts dialog uses `Site Scripts Error`.
 
 ## What it does
 
@@ -36,21 +36,21 @@ Find the message in the table. Do the fix.
 | Message | Cause | Fix |
 |---|---|---|
 | `Enter a target.` | The target box is empty. | Type a target. |
-| `Resolve targets first.` | No snapshot exists. | Select **Resolve targets**. |
-| `Connection changed. Resolve targets again.` | You changed the connection after Resolve. | Resolve again. |
+| `Select Resolve Targets first.` | No snapshot exists. | Select **Resolve Targets**. |
+| `Connection changed. Select Resolve Targets again.` | You changed the connection after Resolve. | Select **Resolve Targets**. |
 | `None of the targets exists in Configuration Manager any more.` | The devices were deleted after Resolve. | Resolve again. |
 | `The editor is empty.` | No query or script text. | Type or open text. |
-| `An operation is already running.` or `Wait for the current operation to finish.` | A run is active. | Wait, or select **Stop waiting**. |
+| `An operation is already running.` or `Wait for the current operation to finish.` | A run is active. | Wait, or select **Stop Waiting**. |
 
 ### Scripts
 
 | Message | Cause | Fix |
 |---|---|---|
 | `Enter the GUID of an approved ConfigMgr script, or submit this draft first.` | The GUID box is empty. | Type a GUID, or submit the draft. |
-| `The draft changed after submission. Submit the edited script and obtain approval.` | The text changed after the submission. | Submit again. |
+| `The draft changed after submission. Submit the edited script and obtain approval.` | The text changed after the submission. | Select **Submit Script for Approval** again. |
 | `The parameters were set for different script text or another script GUID. Open Parameters again.` | The text or GUID changed. | Select **Parameters** again. |
 | `Run Scripts supports at most 10 parameters.` | The `param()` block has more than 10 parameters. | Remove parameters. |
-| `The script is empty. Enter the script text first.` | Submit with an empty editor. | Type the script. |
+| `The script is empty. Enter the script text first.` | **Submit Script for Approval** with an empty editor. | Type the script. |
 | `Select a script first.` | A site script button without a selected row. | Select a script. |
 
 ### Results and sessions
@@ -67,13 +67,34 @@ Find the message in the table. Do the fix.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `AdminService returned HTTP <code> (<text>).` | The service refused the call. | 400: check the query. 401 or 403: check the rights. |
+| `AdminService returned HTTP <code>. The log file has the details.` | The service refused the call. | 400: check the query. 401 or 403: check the rights. Read the log file for the text of the service. |
 | `AdminService did not return a numeric OperationId.` | The reply has an unknown form. | Read the **Raw** tab. |
 | `AdminService sent a next page link that this app cannot follow.` | A result page points to another host. | Check the provider. |
 
+### Messages with a fixed sentence
+
+The tool writes a message itself, for example `Enter a target.`, and shows it as it is. Any other error is raw technical text, for example an exception text, an HTTP reply or a message of Windows. The window never shows that text. The window shows one fixed sentence instead, and the tool writes the raw text to the log file of the day. See [Files and logs](files-and-logs.md).
+
+| Fixed sentence | Where it shows | Fix |
+|---|---|---|
+| `The action failed. The log file has the details.` | A message box, from a button of the Site Scripts dialog or from the main window. | Read the log file. |
+| `The operation failed. The log file has the details.` | The status line, when a background operation fails. | Read the log file. |
+| `The worker could not start. The log file has the details.` | The status line, when the background worker does not start. | Read the log file. |
+| `The worker reported an error. The log file has the details.` | The status line, when the background worker reports an error. | Read the log file. |
+| `The approval failed. The log file has the details.` | The status line, when the approval of a new script fails. | Read the log file. |
+| `The run could not be submitted. The log file has the details.` | The status line and the Devices tab, when the submission fails. | Read the log file. |
+| `The result could not be requested from the site. The log file has the details.` | The Devices tab, when the request for a result fails. | Read the log file. |
+| `The result could not be read. The log file has the details.` | The Devices tab, when a result page cannot be read. | Read the log file. |
+| `AdminService returned HTTP <code>. The log file has the details.` | The status line and the Devices tab, when the administration service refuses a call. | 400: check the query. 401 or 403: check the rights. Read the log file. |
+| `The options could not be saved. The log file has the details.` | The box `Options Error`. | Read the log file. Check the rights on the data folder. |
+| `The parameters could not be applied. The log file has the details.` | The Script Parameters dialog. | Read the log file. |
+| `The site scripts could not be listed. The log file has the details.` | The status line of the Site Scripts dialog. | Select **Refresh**. Read the log file. |
+| `The history could not be saved. The log file has the details.` | The status line. | Read the log file. Check the rights on the data folder. |
+| `The raw record could not be shown. The log file has the details.` | The **Raw** tab. | Read the log file. |
+
 ## Limits
 
-The table lists the messages that the tool writes itself. A message of Configuration Manager or of Windows shows as it comes.
+The first tables list the messages that the tool writes itself. These messages show as they are. A message of Configuration Manager or of Windows never shows as it comes: the window shows a fixed sentence from the last table, and the log file holds the raw text.
 
 ## Troubleshooting
 

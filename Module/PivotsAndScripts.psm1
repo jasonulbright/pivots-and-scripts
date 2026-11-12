@@ -1,6 +1,54 @@
 Set-StrictMode -Version 2
 Import-Module (Join-Path $PSScriptRoot '..\Lib\SuiteCommon\SuiteCommon.psd1') -DisableNameChecking
 
+# The log file path. An empty value means no log file: Write-PasLog then does nothing.
+$script:PasLogPath = ''
+
+function Set-PasLogPath {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Sets a module variable only.')]
+    param([string]$Path)
+    $script:PasLogPath = $Path
+}
+function Write-PasLog {
+    # Writes one line to the log file. A log failure must never stop the app, so every error is swallowed.
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Message,[ValidateSet('INFO','WARN','ERROR')][string]$Level='ERROR')
+    if ([string]::IsNullOrEmpty($script:PasLogPath)) { return }
+    $line = '[{0}] [{1}] {2}{3}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message, [Environment]::NewLine
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($line)
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $stream = $null
+        try {
+            $folder = [IO.Path]::GetDirectoryName($script:PasLogPath)
+            if ($folder) { [IO.Directory]::CreateDirectory($folder) | Out-Null }
+            # FileShare.ReadWrite lets the window and the worker write to the same file.
+            $stream = [IO.FileStream]::new($script:PasLogPath, [IO.FileMode]::Append, [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
+            $stream.Write($bytes, 0, $bytes.Length)
+            return
+        }
+        catch { Start-Sleep -Milliseconds 50 }
+        finally { if ($null -ne $stream) { $stream.Dispose() } }
+    }
+}
+function Get-PasUserErrorText {
+    <#
+    .SYNOPSIS
+        Returns the text of an error that the window may show.
+    .DESCRIPTION
+        A message that this tool throws itself (throw 'text') is written for the user and passes through.
+        Any other error is raw exception text. The raw text goes to the log file and the caller gets the fallback sentence.
+        Only a throw statement has the category OperationStopped. An engine error has another category and never shows.
+        -LogDetail writes the raw text to the log file. A caller that logs the error itself leaves it out.
+    #>
+    param([Parameter(Mandatory)]$ErrorRecord,[Parameter(Mandatory)][string]$Fallback,[switch]$LogDetail)
+    $ex = $ErrorRecord.Exception
+    if ($null -ne $ex -and $ErrorRecord.CategoryInfo.Category -eq [Management.Automation.ErrorCategory]::OperationStopped -and
+        $ex.GetType().FullName -eq 'System.Management.Automation.RuntimeException' -and $null -eq $ex.InnerException) {
+        return [string]$ex.Message
+    }
+    if ($LogDetail -and $null -ne $ex) { Write-PasLog ('Error detail kept out of the window: {0} ({1})' -f $ex.Message, $ex.GetType().FullName) }
+    $Fallback
+}
+
 function Read-PasXml {
     param([string]$Text)
     # Text from endpoints and from the site is parsed with DTD processing off: a document type could expand
@@ -52,7 +100,8 @@ function Assert-PasConnection {
     $sites = @(Get-CMSite -SiteCode $SiteCode -ErrorAction SilentlyContinue -ErrorVariable lookupError)
     if ($lookupError) {
         $reason = @($lookupError)[0].ToString()
-        throw "Site $SiteCode could not be checked on SMS Provider ${SMSProvider}: $reason"
+        Write-PasLog "Site $SiteCode could not be checked on SMS Provider ${SMSProvider}: $reason"
+        throw "Site $SiteCode could not be checked on SMS Provider ${SMSProvider}. The log file has the details."
     }
     if ($sites.Count -ne 1) { throw "Site $SiteCode was not found on SMS Provider $SMSProvider." }
 }
@@ -110,9 +159,9 @@ function Invoke-PasAdminService {
             try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
             try { $parsed = $text | ConvertFrom-Json -ErrorAction Stop; if ($parsed.PSObject.Properties['error'] -and $parsed.error.PSObject.Properties['message']) { $detail = [string]$parsed.error.message } else { $detail = $text } } catch { $detail = $text }
         } catch { $detail = '' }
-        $message = "AdminService returned HTTP $code ($($response.StatusDescription))."
-        if (-not [string]::IsNullOrWhiteSpace($detail)) { $message += ' ' + $detail.Trim() }
-        elseif ($code -eq 400) { $message += ' The service returned no reason. Check the query syntax.' }
+        # The text of the site goes to the log file only. The message holds the HTTP code, which is not exception text.
+        Write-PasLog "AdminService returned HTTP $code ($($response.StatusDescription)) for ${RelativePath}: $($detail.Trim())"
+        $message = "AdminService returned HTTP $code. The log file has the details."
         $failure = [InvalidOperationException]::new($message, $_.Exception)
         $failure.Data['StatusCode'] = $code
         throw $failure
@@ -222,7 +271,7 @@ function Get-PasSiteScript {
         if (-not $item.Count) { return }
         $full = $item[0] | Get-CimInstance -ErrorAction Stop
         $parameters = @(); $definitionError = ''
-        try { $parameters = @(ConvertFrom-PasParamsDefinition ([string]$full.ParamsDefinition)) } catch { $definitionError = $_.Exception.Message }
+        try { $parameters = @(ConvertFrom-PasParamsDefinition ([string]$full.ParamsDefinition)) } catch { Write-PasLog "The parameter definition of script $($full.ScriptGuid) could not be read: $($_.Exception.Message)"; $definitionError = 'The stored definition is not valid. The log file has the details.' }
         [pscustomobject]@{ScriptGuid=[string]$full.ScriptGuid;ScriptName=[string]$full.ScriptName;ApprovalState=[int]$full.ApprovalState;Author=[string]$full.Author;Approver=[string]$full.Approver;Parameters=$parameters;DefinitionError=$definitionError}
     } finally { Remove-CimSession $cim }
 }
@@ -251,9 +300,9 @@ function New-PasManagedScript {
             if ([string]$after.ParamsDefinition -ne $encoded -or [string]$after.Script -ne [string]$instance.Script) { throw 'The parameter definitions read back from the site do not match.' }
         } finally { Remove-CimSession $cim }
     } catch {
-        $reason = $_.Exception.Message
         try { Remove-CMScript -InputObject $created -Force -ErrorAction Stop; $cleanup = 'The incomplete script was removed.' } catch { $cleanup = "Remove script $guid in the console." }
-        throw "Script parameters could not be stored: $reason $cleanup"
+        Write-PasLog "Script parameters could not be stored for script ${guid}: $($_.Exception.Message)"
+        throw "Script parameters could not be stored. The log file has the details. $cleanup"
     }
     [pscustomobject]@{ScriptGuid=$guid;Parameters=@($parameters | ForEach-Object Name)}
 }
@@ -267,7 +316,7 @@ function Get-PasSubmittedMessage {
 }
 function ConvertTo-PasScriptArguments {
     param($SiteScript,[hashtable]$Parameters)
-    if ($SiteScript.PSObject.Properties['DefinitionError'] -and $SiteScript.DefinitionError) { throw "The parameter definitions of script $($SiteScript.ScriptGuid) cannot be read: $($SiteScript.DefinitionError)" }
+    if ($SiteScript.PSObject.Properties['DefinitionError'] -and $SiteScript.DefinitionError) { throw "The parameter definitions of script $($SiteScript.ScriptGuid) cannot be read. $($SiteScript.DefinitionError)" }
     if ($null -eq $Parameters) { $Parameters = @{} }
     $defined = @{}
     foreach ($p in @($SiteScript.Parameters)) { $defined[$p.Name] = $p }
@@ -407,7 +456,8 @@ function Set-PasScriptApproval {
         else { Deny-CMScript -ScriptGuid $ScriptGuid.ToString() -Comment $Comment -ErrorAction Stop }
     } catch {
         # The provider reports only a generic error when an author approves or denies their own script.
-        if ([string]$item.Author -eq $me) { throw "The site did not let you $($Decision.ToLowerInvariant()) your own script. By default, Configuration Manager requires a second approver (hierarchy setting 'Script authors require additional script approver'). The site said: $($_.Exception.Message)" }
+        Write-PasLog "The site refused to $($Decision.ToLowerInvariant()) script $($item.ScriptGuid): $($_.Exception.Message)"
+        if ([string]$item.Author -eq $me) { throw "The site did not let you $($Decision.ToLowerInvariant()) your own script. By default, Configuration Manager requires a second approver (hierarchy setting 'Script authors require additional script approver'). The log file has the details." }
         throw
     }
     $after = Get-CMScript -ScriptGuid $ScriptGuid.ToString() -Fast -ErrorAction Stop
@@ -462,6 +512,9 @@ function Get-PasWorkerError {
     param([Management.Automation.PowerShell]$PowerShell)
     # HadErrors is also true for a cmdlet error the worker caught and already reported as an Error event; the stream is then empty.
     $text = (@($PowerShell.Streams.Error) | ForEach-Object { $_.ToString() }) -join "`n"
-    if ($text) { $text }
+    if ($text) {
+        Write-PasLog "The worker reported an error: $text"
+        'The worker reported an error. The log file has the details.'
+    }
 }
 Export-ModuleMember -Function *-Pas*

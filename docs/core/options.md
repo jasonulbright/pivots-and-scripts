@@ -22,7 +22,7 @@ None.
 
 ![The Connection page at the first start](../images/options-empty.png)
 
-2. Type the **Site code** and the **SMS Provider**.
+2. Type the **Site Code** and the **SMS Provider**. The two titles are bold 14 pt in both themes. The value boxes use normal text.
 
 ![The Connection page with values](../images/options-connection.png)
 
@@ -49,7 +49,7 @@ Select **About**. The page shows the version of the tool and of the shared modul
 
 ### Switch the theme
 
-Use the switch at the bottom of the sidebar. The label shows **Dark Theme** or **Light Theme**. The dialogs follow the theme. The tool does not save the theme: every start uses the dark theme.
+Use the switch at the bottom of the sidebar. The label shows **Dark Theme** or **Light Theme**. The dialogs follow the theme. The light theme and the dark theme differ in colors only. Every blue box has white text in both themes. The tool does not save the theme: every start uses the dark theme.
 
 ![The Pivot view in the light theme](../images/light-pivot.png)
 
@@ -59,9 +59,9 @@ Use the switch at the bottom of the sidebar. The label shows **Dark Theme** or *
 
 | Setting | Effect | Default |
 |---|---|---|
-| Site code | The 3-character site code. | Empty |
+| Site Code | The 3-character site code. | Empty |
 | SMS Provider | The host name of the SMS Provider, without a URL or a path. | Empty |
-| Approve scripts after submission | Approves each new script right after Submit. | Off |
+| Approve scripts after submission | Approves each new script right after **Submit Script for Approval**. | Off |
 | Theme | Dark or light. The tool does not save it. | Dark |
 
 ## Limits

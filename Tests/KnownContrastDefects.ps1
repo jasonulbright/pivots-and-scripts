@@ -4,49 +4,17 @@
 # (remove it here). Run Show-ContrastViolations.ps1 to print the current list.
 #
 # Text must reach 4.5:1 and a control border 3:1, enabled and disabled, in both
-# themes. The causes are shared by every suite tool: the SuiteCommon palette
-# (sidebar button border #555555 on #1E1E1E is 2.06:1), the MahApps disabled
-# style, the light text box border and the unselected tab header. The fix
-# belongs in app-packager-suite, then a sync of the vendored copy, not here.
+# themes. Two defects remain, both in the light theme:
+#   - titlebar:inactive. SuiteCommon paints the inactive title bar #4BA3E0 in the light theme (white text on it is below 4.5:1).
+#     The fix belongs in app-packager-suite, then a sync of the vendored copy, not here.
+#   - targetKind:EnabledText and targetKind:DisabledText. The MahApps combo box draws its drop-down arrow glyph in a content
+#     presenter with Opacity 0.5. The measure reads the glyph as text: black at half opacity on white is 3.95:1 (a graphic
+#     needs 3:1). The glyph is part of the MahApps template; the dark theme passes.
 function Get-KnownContrastDefect {
     param([Parameter(Mandatory)][ValidateSet('dark', 'light')][string]$Theme)
     switch ($Theme) {
-        'dark' {
-            @(
-                'btnCheck:DisabledText', 'btnConnect:DisabledText', 'btnCopy:DisabledText',
-                'btnCsv:DisabledText', 'btnFind:DisabledText', 'btnGrid:DisabledText',
-                'btnHistory:DisabledBorder', 'btnHistory:EnabledBorder', 'btnImport:DisabledText',
-                'btnJson:DisabledText', 'btnNewSession:DisabledText', 'btnOpen:DisabledText',
-                'btnOptions:DisabledBorder', 'btnOptions:EnabledBorder', 'btnParameters:DisabledText',
-                'btnPivot:DisabledBorder', 'btnPivot:DisabledText', 'btnPivot:EnabledBorder',
-                'btnReplace:DisabledText', 'btnResolve:DisabledText', 'btnRun:DisabledText',
-                'btnSave:DisabledText', 'btnSaveSession:DisabledText', 'btnScript:DisabledBorder',
-                'btnScript:DisabledText', 'btnScript:EnabledBorder', 'btnSelectionPivot:DisabledText',
-                'btnSelectionScript:DisabledText', 'btnSiteScripts:DisabledText', 'btnStop:DisabledText',
-                'btnSubmit:DisabledText', 'btnTargets:DisabledText',
-                'text:Stop waiting', 'titlebar:inactive'
-            )
-        }
-        'light' {
-            @(
-                'btnHistory:DisabledBorder', 'btnOptions:DisabledBorder', 'btnPivot:DisabledBorder', 'btnScript:DisabledBorder',
-                'btnCheck:DisabledText', 'btnConnect:DisabledText', 'btnCopy:DisabledText',
-                'btnCsv:DisabledText', 'btnFind:DisabledText', 'btnGrid:DisabledText',
-                'btnHistory:DisabledText', 'btnImport:DisabledText', 'btnJson:DisabledText',
-                'btnNewSession:DisabledText', 'btnOpen:DisabledText', 'btnOptions:DisabledText',
-                'btnParameters:DisabledText', 'btnPivot:DisabledText', 'btnReplace:DisabledText',
-                'btnResolve:DisabledText', 'btnRun:DisabledText', 'btnSave:DisabledText',
-                'btnSaveSession:DisabledText', 'btnScript:DisabledText', 'btnSelectionPivot:DisabledText',
-                'btnSelectionScript:DisabledText', 'btnSiteScripts:DisabledText', 'btnStop:DisabledText',
-                'btnSubmit:DisabledText', 'btnTargets:DisabledText', 'findText:DisabledBorder',
-                'findText:EnabledBorder', 'libraryFilter:DisabledBorder', 'libraryFilter:EnabledBorder',
-                'replaceText:DisabledBorder', 'replaceText:EnabledBorder', 'resultFilter:DisabledBorder',
-                'resultFilter:EnabledBorder', 'scriptGuid:DisabledBorder', 'scriptGuid:EnabledBorder',
-                'targetInput:DisabledBorder', 'targetInput:EnabledBorder', 'targetKind:DisabledBorder',
-                'targetKind:DisabledText', 'targetKind:EnabledBorder', 'targetKind:EnabledText',
-                'text:Stop waiting', 'titlebar:inactive'
-            )
-        }
+        'dark' { @() }
+        'light' { @('targetKind:DisabledText', 'targetKind:EnabledText', 'titlebar:inactive') }
     }
 }
 
