@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Restore the weight of the Options headers to SemiBold. The light theme change had made them bold. Show the Dark Theme label in the normal weight again. Only field titles and the sidebar and page titles that were bold before are bold.
+
+### Added
+
+- Add FontWeight.Guard.Tests.ps1 and FontWeightGuardHelpers.ps1. They fail when a bold weight is set on a label that is not a field title or an app title, in XAML, in the XAML of the scripts and in code that sets a weight at run time.
+
 ## [2026.11.12.0010] - 2026-11-12
 
 ## 1 shared button style for every button, with readable text in every state

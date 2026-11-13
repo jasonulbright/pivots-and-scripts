@@ -369,7 +369,7 @@ function Get-XamlTitle {
         elseif ($strName -in 'DataGridTextColumn', 'DataGridCheckBoxColumn', 'DataGridTemplateColumn') { $strValue = $objElement.GetAttribute('Header') }
         elseif ($strName -eq 'ToggleSwitch') { $strValue = $objElement.GetAttribute('Header') }
         elseif ($strName -eq 'MetroWindow' -or $strName -eq 'Window') { $strValue = $objElement.GetAttribute('Title') }
-        elseif ($strName -eq 'TextBlock' -and ($objElement.GetAttribute('FontWeight') -eq 'Bold' -or $objElement.ParentNode.LocalName -eq 'TabItem.Header')) { $strValue = $objElement.GetAttribute('Text') }
+        elseif ($strName -eq 'TextBlock' -and ($objElement.GetAttribute('FontWeight') -in 'Bold', 'SemiBold' -or $objElement.ParentNode.LocalName -eq 'TabItem.Header')) { $strValue = $objElement.GetAttribute('Text') }
         if ($strValue -and $strValue -notmatch '^\{' -and $strValue -notmatch '^(On|Off)$') { $strValue }
     }
 }
@@ -557,16 +557,6 @@ function Get-CodeButtonViolation {
             if ($strMember -in 'Width', 'MinWidth', 'MaxWidth', 'Height', 'MinHeight', 'MaxHeight', 'Padding' -and @($AllowedKey | Where-Object { $_ -like 'Dialog*' }).Count -gt 0 -and @($arrStyle | Where-Object { $_.Arguments[1].Extent.Text -match "^'Dialog" }).Count -gt 0) { '{0}:{1}: dialog button ${2} sets {3} in code' -f (Split-Path -Leaf $Path), $objSet.Extent.StartLineNumber, $strVariable, $strMember }
             if ($strMember -eq 'FontWeight' -and $objSet.Right.Extent.Text -notmatch 'FontWeights\]::Bold\b') { '{0}:{1}: Button ${2} sets a font weight other than Bold' -f (Split-Path -Leaf $Path), $objSet.Extent.StartLineNumber, $strVariable }
         }
-    }
-}
-
-# Returns one text per font weight assignment in a script that is not Bold.
-function Get-NonBoldWeight {
-    param([string]$Path)
-    $objAst = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
-    $arrAssign = $objAst.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left -is [System.Management.Automation.Language.MemberExpressionAst] -and [string]$n.Left.Member.Value -eq 'FontWeight' }, $true)
-    foreach ($objAssign in $arrAssign) {
-        if ($objAssign.Right.Extent.Text -notmatch 'FontWeights\]::Bold\b') { '{0}:{1}: {2}' -f (Split-Path -Leaf $Path), $objAssign.Extent.StartLineNumber, $objAssign.Extent.Text }
     }
 }
 
