@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Block the footer click while background work runs. The Options button is disabled then, and the footer text now follows the same rule. The footer guard checks it, with a bad sample.
 - Restore the weight of the Options headers to SemiBold. The light theme change had made them bold. Show the Dark Theme label in the normal weight again. Show the page heading and the selected tab header in SemiBold. Show the Library header and the Query Editor label in the normal weight. Only field titles and the sidebar app title are bold.
 
 ### Added
