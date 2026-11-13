@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Restore the weight of the Options headers to SemiBold. The light theme change had made them bold. Show the Dark Theme label in the normal weight again. Only field titles and the sidebar and page titles that were bold before are bold.
+- Restore the weight of the Options headers to SemiBold. The light theme change had made them bold. Show the Dark Theme label in the normal weight again. Show the page heading, the Library header, the Query Editor label and the selected tab header in SemiBold. Only field titles and the sidebar app title are bold.
 
 ### Added
 

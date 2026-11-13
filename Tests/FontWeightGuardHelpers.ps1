@@ -26,11 +26,11 @@ $script:FwHolderType = @('Border', 'StackPanel', 'Grid', 'DockPanel', 'WrapPanel
 $script:FwConfig = @{
     FieldTitleStyle = @()
     AppTitleName    = @()
-    KeptBoldName    = @('heading', 'editorLabel')
-    KeptBoldStyle   = @('TabHeaderText')
+    KeptBoldName    = @()
+    KeptBoldStyle   = @()
     FieldTitleName  = @()
-    StaticName      = @('txtThemeLabel', 'connectionInfo', 'status')
-    AllowedText     = @('Site Code', 'SMS Provider', 'Library', 'Pivots and Scripts')
+    StaticName      = @('txtThemeLabel', 'connectionInfo', 'status', 'heading', 'editorLabel')
+    AllowedText     = @('Site Code', 'SMS Provider', 'Pivots and Scripts')
     ExemptType      = @('Button', 'ToggleButton', 'RepeatButton')
     CodeAllowed     = @('Set-ConnectionTextTheme:title', 'New-PasOptionsText:block', 'Show-PasParameterDialog:label')
 }

@@ -349,10 +349,10 @@ Describe 'Fonts do not depend on the theme (b)' {
         $objElement.GetAttribute('FontWeight') | Should -BeIn @('', 'Normal')
     }
 
-    It 'sets Bold on every heading of 14 pt or more in <_.Source>' -ForEach $script:arrOwnXamlDocD {
+    It 'sets Bold or SemiBold on every heading of 14 pt or more in <_.Source>' -ForEach $script:arrOwnXamlDocD {
         [xml]$xml = $_.Text
         $arrBad = foreach ($objText in @($xml.SelectNodes("//*[local-name()='TextBlock'][@FontSize]"))) {
-            if ([double]$objText.GetAttribute('FontSize') -ge 14 -and $objText.GetAttribute('FontWeight') -ne 'Bold') { '{0} {1}' -f $objText.GetAttribute('Name', $script:strXamlNamespace), $objText.GetAttribute('Text') }
+            if ([double]$objText.GetAttribute('FontSize') -ge 14 -and $objText.GetAttribute('FontWeight') -notin 'Bold', 'SemiBold') { '{0} {1}' -f $objText.GetAttribute('Name', $script:strXamlNamespace), $objText.GetAttribute('Text') }
         }
         @($arrBad) | Should -BeNullOrEmpty
     }
