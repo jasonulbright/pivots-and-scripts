@@ -10,7 +10,7 @@ BeforeAll {
     # AvalonEdit text documents work on any thread; the replace handler edits one.
     foreach ($dll in 'ICSharpCode.AvalonEdit.dll') { [void][System.Reflection.Assembly]::LoadFrom((Join-Path $script:AppRoot "Lib\$dll")) }
     $script:ShellPath = Join-Path $script:AppRoot 'start-pivotsandscripts.ps1'
-    $wanted = 'Show-PasError', 'Set-PasMode', 'Refresh-PasResults', 'Save-PasSession', 'Update-PasConnectionInfo', 'Get-PasRunScope',
+    $wanted = 'Show-PasError', 'Set-PasMode', 'Refresh-PasResults', 'Save-PasSession', 'Get-PasRunScope',
     'Get-PasParameterKey', 'Get-PasStepState', 'Start-PasWork', 'Send-PasSelection'
     foreach ($text in @(Get-ScriptFunctionText -Path $script:ShellPath -Name $wanted)) { . ([scriptblock]::Create($text)) }
     $script:RealText = @{}
@@ -32,7 +32,7 @@ BeforeAll {
     $script:Handler['results.Add_Sorting'] = Get-EventHandlerBlock -Path $script:ShellPath -Target '$ui.results' -EventName 'Add_Sorting'
     $script:Handler['results.Add_ColumnReordered'] = Get-EventHandlerBlock -Path $script:ShellPath -Target '$ui.results' -EventName 'Add_ColumnReordered'
 
-    $script:ControlNames = @('btnPivot', 'btnScript', 'btnHistory', 'toggleTheme', 'txtThemeLabel', 'library', 'libraryFilter', 'btnOpen', 'btnSave', 'btnSaveSession', 'btnNewSession', 'heading', 'connectionInfo', 'connectionPair', 'txtSiteCode', 'txtSmsProvider', 'btnOptions', 'btnSiteScripts', 'btnConnect', 'targetKind', 'targetInput', 'btnImport', 'btnResolve', 'targetSummary', 'btnTargets', 'editor', 'editorLabel', 'editorPosition', 'btnCheck', 'btnFind', 'findText', 'replaceText', 'btnReplace', 'btnRun', 'btnStop', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'resultFilter', 'btnCsv', 'btnJson', 'btnCopy', 'btnGrid', 'btnSelectionScript', 'btnSelectionPivot', 'results', 'devices', 'raw', 'pipeline', 'resultTabs', 'status')
+    $script:ControlNames = @('btnPivot', 'btnScript', 'btnHistory', 'toggleTheme', 'txtThemeLabel', 'library', 'libraryFilter', 'btnOpen', 'btnSave', 'btnSaveSession', 'btnNewSession', 'heading',     'btnOptions', 'btnSiteScripts', 'btnConnect', 'targetKind', 'targetInput', 'btnImport', 'btnResolve', 'targetSummary', 'btnTargets', 'editor', 'editorLabel', 'editorPosition', 'btnCheck', 'btnFind', 'findText', 'replaceText', 'btnReplace', 'btnRun', 'btnStop', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'resultFilter', 'btnCsv', 'btnJson', 'btnCopy', 'btnGrid', 'btnSelectionScript', 'btnSelectionPivot', 'results', 'devices', 'raw', 'pipeline', 'resultTabs', 'status')
 
     function script:New-FakeControl {
         $c = [pscustomobject]@{ Text = ''; IsEnabled = $true; Content = ''; Visibility = 'Visible'; ItemsSource = $null; SelectedItem = $null; SelectedIndex = 0; IsOn = $true; SelectedItems = @(); SelectionStart = 0; SelectionLength = 0; Focused = $false; Selected = $null; SyntaxHighlighting = $null }
@@ -227,29 +227,6 @@ Describe 'Set-PasHighlighting' {
         $ui.editor.SyntaxHighlighting.Name | Should -Be 'Workbench'
         $kw = $ui.editor.SyntaxHighlighting.GetNamedColor('Keyword')
         $kw.Foreground.GetColor($null).ToString() | Should -Be ('#FF' + $Accent.Substring(1))
-    }
-}
-
-Describe 'Update-PasConnectionInfo' {
-    It 'shows the site and the provider values and hides the hint' {
-        Update-PasConnectionInfo
-        $ui.txtSiteCode.Text | Should -Be 'MCM'
-        $ui.txtSmsProvider.Text | Should -Be 'cm01.contoso.com'
-        $ui.connectionPair.Visibility | Should -Be 'Visible'
-        $ui.connectionInfo.Visibility | Should -Be 'Collapsed'
-    }
-    It 'asks for the options when <Case>' -ForEach @(
-        @{ Case = 'the site code is missing'; Site = ''; Provider = 'cm01' }
-        @{ Case = 'the provider is missing'; Site = 'MCM'; Provider = '' }
-        @{ Case = 'both are missing'; Site = ''; Provider = '' }
-    ) {
-        $script:prefs.SiteCode = $Site; $script:prefs.SMSProvider = $Provider
-        Update-PasConnectionInfo
-        $ui.connectionInfo.Text | Should -Be 'Connection not set. Open Options.'
-        $ui.connectionInfo.Visibility | Should -Be 'Visible'
-        $ui.connectionPair.Visibility | Should -Be 'Collapsed'
-        $ui.txtSiteCode.Text | Should -Be $Site
-        $ui.txtSmsProvider.Text | Should -Be $Provider
     }
 }
 

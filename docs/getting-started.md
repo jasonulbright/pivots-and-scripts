@@ -30,7 +30,7 @@ The tool uses your Windows account. It stores no password.
 powershell.exe -NoProfile -STA -File .\start-pivotsandscripts.ps1
 ```
 
-The window opens on the **CMPivot** view with a sample query. The line under the heading says `Connection not set.` and tells you to open Options.
+The window opens on the **CMPivot** view with a sample query. The footer says `Site not set`. Select it to open Options.
 
 ![The window at the first start](images/start-first-run.png)
 
@@ -49,7 +49,7 @@ If you select **Test Connection** before you set the connection, a message tells
 
 ![The Connection page with values](images/options-connection.png)
 
-The line under the heading now shows the bold titles **Site Code** and **SMS Provider**, each with its value: `MCM` and `cm01.contoso.com`. The footer shows the same values at the right end: `Site MCM · cm01.contoso.com`. Before you set them, the footer shows `Site not set`. The footer is read-only text. Select it to open **Options**. You change the site code and the SMS Provider only in **Options**.
+The footer shows the values at the right end: `MCM` and `cm01.contoso.com`, as `Site MCM · cm01.contoso.com`. Before you set them, the footer shows `Site not set`. The footer is read-only text. Select it to open **Options**. You change the site code and the SMS Provider only in **Options**.
 
 ![The window with the connection set](images/connection-set.png)
 

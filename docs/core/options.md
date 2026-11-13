@@ -22,7 +22,7 @@ None.
 
 ![The Connection page at the first start](../images/options-empty.png)
 
-2. Type the **Site Code** and the **SMS Provider**. The two titles are bold 14 pt in both themes. The value boxes use normal text. These two boxes are the only place where you change the connection. The header line and the footer show the saved values as read-only text.
+2. Type the **Site Code** and the **SMS Provider**. The two titles are bold 14 pt in both themes. The value boxes use normal text. These two boxes are the only place where you change the connection. The footer shows the saved values as read-only text.
 
 ![The Connection page with values](../images/options-connection.png)
 

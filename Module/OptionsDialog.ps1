@@ -156,7 +156,6 @@ function Show-PasOptionsDialog {
             if (-not (Save-SuiteSettings -Path $prefsPath -Settings $settings)) { throw "The options could not be saved to $prefsPath." }
             $script:persisted.SiteCode = $settings.SiteCode; $script:persisted.SMSProvider = $settings.SMSProvider
             $script:prefs.SiteCode = $newSite; $script:prefs.SMSProvider = $newProvider; $script:prefs.ApproveAfterSubmit = [bool]$chkApprove.IsChecked
-            Update-PasConnectionInfo
             Update-PasFooter
             if ($changed) { $ui.targetSummary.Text = 'Connection changed. Select Resolve Targets again.'; $ui.status.Text = 'Options saved. Select Test Connection to check the new connection.' } else { $ui.status.Text = 'Options saved.' }
             $dialog.DialogResult = $true
