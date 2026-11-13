@@ -41,7 +41,7 @@ The app uses your Windows identity. It stores no credentials.
 
 ### Connect and resolve targets
 
-Set the **Site Code** and the **SMS Provider** name in **Options > Connection**, then select **Test Connection**. The line under the heading shows the bold titles **Site Code** and **SMS Provider** with their values. Before you set them, it shows `Connection not set.` and a note to open Options. A value saved in Options wins. The suite launcher fills an empty value through `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The `-SiteCode` and `-SMSProvider` command-line parameters override both for one session.
+Set the **Site Code** and the **SMS Provider** name in **Options > Connection**, then select **Test Connection**. The line under the heading shows the bold titles **Site Code** and **SMS Provider** with their values. Before you set them, it shows `Connection not set.` and a note to open Options. The footer shows the saved values at the right end, for example `Site MCM · cm01.contoso.com`. Both places are read-only text: select the footer text to open **Options**, and change the values only there. A value saved in Options wins. The suite launcher fills an empty value through `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The `-SiteCode` and `-SMSProvider` command-line parameters override both for one session.
 
 ![Options, Connection](docs/images/options-connection.png)
 

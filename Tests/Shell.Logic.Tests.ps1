@@ -50,6 +50,8 @@ BeforeAll {
     function script:Update-Library { $script:Calls.Add('Update-Library') }
     function script:Set-PasHighlighting { $script:Calls.Add('Set-PasHighlighting') }
     function script:Update-SidebarButtonTheme { $script:Calls.Add('Update-SidebarButtonTheme') }
+    # The footer needs the window. The logic tests have none, so the footer refresh does nothing here.
+    function script:Update-PasFooter { }
 
     function script:Invoke-Handler {
         param([string]$Name, $First = $null, $Second = $null)
