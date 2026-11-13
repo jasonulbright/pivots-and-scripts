@@ -203,13 +203,13 @@ Describe 'Result tab headers' -Skip:(-not $script:WindowGuard.Allowed) {
         $xaml | Should -Not -Match '<TabItem Header='
     }
 
-    It 'sets size 13 on the header style and makes only the selected header bold' {
+    It 'sets size 13 on the header style and makes only the selected header SemiBold' {
         $xaml = Get-Content -LiteralPath $script:XamlPath -Raw -Encoding UTF8
         $style = [regex]::Match($xaml, '<Style x:Key="TabHeaderText".*?</Style>').Value
         $style | Should -Match '<Setter Property="FontSize" Value="13"/>'
-        # The only bold setter is inside the trigger on the selected state of the owning tab.
+        # The only weight setter is inside the trigger on the selected state of the owning tab.
         ([regex]::Matches($style, 'FontWeight')).Count | Should -Be 1
-        $style | Should -Match '<DataTrigger Binding="\{Binding IsSelected, RelativeSource=\{RelativeSource AncestorType=TabItem\}\}" Value="True"><Setter Property="FontWeight" Value="Bold"/></DataTrigger>'
+        $style | Should -Match '<DataTrigger Binding="\{Binding IsSelected, RelativeSource=\{RelativeSource AncestorType=TabItem\}\}" Value="True"><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>'
         $xaml | Should -Match 'x:Name="resultTabs" Controls:HeaderedControlHelper\.HeaderFontSize="13"'
     }
 }
