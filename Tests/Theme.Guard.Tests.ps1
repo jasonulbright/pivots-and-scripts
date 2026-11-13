@@ -389,14 +389,13 @@ Describe 'Fonts do not depend on the theme (b)' {
         }
     }
 
-    It 'finds both connection value boxes in the main window, each with a title before it' {
-        $objMain = @($script:arrXamlDoc | Where-Object { $_.Source -eq 'MainWindow.xaml' })[0]
-        [xml]$xml = $objMain.Text
-        foreach ($strName in 'txtSiteCode', 'txtSmsProvider') {
-            $objElement = $xml.SelectSingleNode(("//*[@*[local-name()='Name']='{0}']" -f $strName))
-            $objElement | Should -Not -BeNullOrEmpty -Because $strName
-            $objElement.PreviousSibling | Should -Not -BeNullOrEmpty -Because $strName
-        }
+    It 'shows the site code and the SMS Provider once, in the footer, and not in the header of the main window' {
+        $objMain = @($script:arrXamlDoc | Where-Object { $_.Source -eq 'MainWindow.xaml' })[0]
+        [xml]$xml = $objMain.Text
+        foreach ($strName in 'txtSiteCode', 'txtSmsProvider', 'connectionInfo', 'connectionPair') {
+            $xml.SelectSingleNode(("//*[@*[local-name()='Name']='{0}']" -f $strName)) | Should -BeNullOrEmpty -Because ('{0} would show the site a second time' -f $strName)
+        }
+        @($xml.SelectNodes("//*[local-name()='TextBlock'][@Text='Site Code' or @Text='SMS Provider']")).Count | Should -Be 0
     }
 
     It 'builds the Site Code and SMS Provider titles of the Options dialog bold at 14 pt, and sets no font on their boxes' {

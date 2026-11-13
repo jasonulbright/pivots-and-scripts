@@ -27,7 +27,7 @@ $script:drafts=@{Pivot='Disk | project Device, Name, FreeSpace';Script=''}
 $reader=[Xml.XmlNodeReader]::new([xml][IO.File]::ReadAllText((Join-Path $PSScriptRoot 'MainWindow.xaml')))
 $window=[Windows.Markup.XamlReader]::Load($reader)
 $ui=@{}
-foreach($name in @('btnPivot','btnScript','btnHistory','toggleTheme','txtThemeLabel','library','libraryFilter','btnOpen','btnSave','btnSaveSession','btnNewSession','heading','connectionInfo','connectionPair','txtSiteCode','txtSmsProvider','btnOptions','btnSiteScripts','btnConnect','targetKind','targetInput','btnImport','btnResolve','targetSummary','btnTargets','editor','editorLabel','editorPosition','btnCheck','btnFind','findText','replaceText','btnReplace','btnRun','btnStop','btnSubmit','guidLabel','scriptGuid','btnParameters','resultFilter','btnCsv','btnJson','btnCopy','btnGrid','btnSelectionScript','btnSelectionPivot','results','devices','raw','pipeline','resultTabs','status')) { $ui[$name]=$window.FindName($name) }
+foreach($name in @('btnPivot','btnScript','btnHistory','toggleTheme','txtThemeLabel','library','libraryFilter','btnOpen','btnSave','btnSaveSession','btnNewSession','heading','btnOptions','btnSiteScripts','btnConnect','targetKind','targetInput','btnImport','btnResolve','targetSummary','btnTargets','editor','editorLabel','editorPosition','btnCheck','btnFind','findText','replaceText','btnReplace','btnRun','btnStop','btnSubmit','guidLabel','scriptGuid','btnParameters','resultFilter','btnCsv','btnJson','btnCopy','btnGrid','btnSelectionScript','btnSelectionPivot','results','devices','raw','pipeline','resultTabs','status')) { $ui[$name]=$window.FindName($name) }
 $script:prefs=Read-SuiteSettings -Path $prefsPath -Defaults @{SiteCode='';SMSProvider='';ApproveAfterSubmit=$false}
 # The suite launcher hands its site code and provider to each tool it starts.
 # A value saved in this tool wins; the launcher value fills an empty one; command-line values override both for this session only.
@@ -120,16 +120,11 @@ function Save-PasSession {
     if($script:step -and $script:work -and $script:work.Action -eq 'Run'){$script:step.Results=@($script:rows);$script:step.Devices=@($script:states.Values);$script:step.Raw=@($script:rawRecords);$script:step.ResultCount=$script:rows.Count}
     Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session -Confirm:$false
 }
-function Update-PasConnectionInfo {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates in-window TextBlocks only.')]
+function Update-PasFooter {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates in-window text only.')]
     param()
-    # The titles (Site Code, SMS Provider) are separate bold 14 pt TextBlocks in the XAML. Only the values change here.
-    $isSet=[bool]($script:prefs.SiteCode -and $script:prefs.SMSProvider)
-    $ui.txtSiteCode.Text=[string]$script:prefs.SiteCode
-    $ui.txtSmsProvider.Text=[string]$script:prefs.SMSProvider
-    $ui.connectionPair.Visibility=if($isSet){'Visible'}else{'Collapsed'}
-    $ui.connectionInfo.Visibility=if($isSet){'Collapsed'}else{'Visible'}
-    $ui.connectionInfo.Text='Connection not set. Open Options.'
+    # The footer shows the saved site code and site server as read-only text.
+    if($window){try{Update-SuiteFooter -Window $window -SiteCode ([string]$script:prefs.SiteCode) -SiteServer ([string]$script:prefs.SMSProvider)}catch{Write-PasLog 'The footer was not updated.'}}
 }
 function Get-PasRunScope { param($Request) if($Request.CollectionId){"Configuration Manager receives one operation for collection $($Request.CollectionId)."}else{"Configuration Manager receives one operation for this device list."} }
 function Get-PasParameterKey { Get-PasHash $ui.editor.Text }
@@ -195,6 +190,7 @@ $timer.Add_Tick({
     }
     if($changed){Refresh-PasResults}
     if($completed){
+        if($script:work.Action -eq 'Connect'){Update-PasFooter}
         try {$null=$script:work.PS.EndInvoke($script:work.Handle);$streamError=Get-PasWorkerError $script:work.PS;if($streamError){$script:work.HadError=$true;$ui.status.Text=$streamError}}
         catch {$script:work.HadError=$true;$ui.status.Text=Get-PasUserErrorText -ErrorRecord $_ -Fallback 'The operation failed. The log file has the details.' -LogDetail}
         if($script:work.Action -eq 'Run'){
@@ -289,8 +285,13 @@ $ui.toggleTheme.Add_Toggled({$dark=$ui.toggleTheme.IsOn;[void][ControlzEx.Themin
 $window.Add_SourceInitialized({Set-ButtonTheme -IsDark $ui.toggleTheme.IsOn;Update-SidebarButtonTheme;Update-TitleBarBrushes})
 $window.Add_Closing({param($s,$e) if($script:work){$e.Cancel=$true;$script:work.Control.Stop=$true;$script:work.Stopped=$true;$ui.status.Text='Stopping local waiting. Close again after the worker finishes.';return};try{Save-PasSession;Save-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')}catch{if($SmokeTest){[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'work\smoke.log'),$_.ToString())}else{$e.Cancel=$true;Show-PasError $_}}})
 Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')
-Update-PasConnectionInfo;Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
-if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;if($ui.connectionInfo.Visibility -eq 'Collapsed' -and $ui.connectionPair.Visibility -eq 'Collapsed'){throw 'Connection label missing.'};Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
+# Footer: the shared footer style of SuiteCommon and the site connection at the right end. Select it to open Options.
+$window.Add_Loaded({
+    try{Initialize-SuiteFooter -Window $window -StatusName 'status' -OnOpenOptions {try{Show-PasOptionsDialog}catch{Show-PasError $_}} | Out-Null}catch{Write-PasLog 'The footer was not set up.'}
+    Update-PasFooter
+})
+Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
+if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
 # Suite update notice: one shared daily lookup across the suite tools; the launcher installs.
 $null = Start-SuiteUpdateNotice -Path $PSScriptRoot -OnResult { param($u) if ($u.Available) { $ui.status.Text = ('Suite update available: v{0}. Update from the AppPackager Suite Launcher.' -f $u.Latest) } }
 try{$window.ShowDialog()|Out-Null}finally{$timer.Stop()}
