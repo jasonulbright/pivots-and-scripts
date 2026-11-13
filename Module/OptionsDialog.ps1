@@ -4,10 +4,10 @@ if ($versionLine) { $script:appVersion = $versionLine.Matches[0].Groups[1].Value
 
 function New-PasOptionsText {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Builds a TextBlock in memory only.')]
-    param([string]$Text,[double]$Size=12,[switch]$Bold,[string]$Margin='0,0,0,8',[switch]$Muted)
+    param([string]$Text,[double]$Size=12,[switch]$Bold,[string]$Margin='0,0,0,8',[switch]$Muted,[string]$Weight='Normal')
     $block = [Windows.Controls.TextBlock]::new()
     $block.Text = $Text; $block.FontSize = $Size; $block.Margin = $Margin; $block.TextWrapping = 'Wrap'
-    if ($Bold) { $block.FontWeight = [Windows.FontWeights]::Bold }
+    if ($Bold) { $block.FontWeight = [Windows.FontWeights]::Bold } else { $block.FontWeight = $Weight }
     if ($Muted) { $block.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'MahApps.Brushes.Gray1') }
     $block
 }
@@ -116,7 +116,7 @@ function Show-PasOptionsDialog {
 
     # The titles of the site code and the SMS Provider are bold 14 pt in both themes. The values are plain text boxes.
     $connection = [Windows.Controls.StackPanel]::new()
-    [void]$connection.Children.Add((New-PasOptionsText 'Configuration Manager Connection' 18 -Bold -Margin '0,0,0,12'))
+    [void]$connection.Children.Add((New-PasOptionsText 'Configuration Manager Connection' 18 -Weight SemiBold -Margin '0,0,0,12'))
     [void]$connection.Children.Add((New-PasOptionsText 'Site Code' 14 -Bold -Margin '0,4,0,2'))
     $txtSite = [Windows.Controls.TextBox]::new(); $txtSite.Text = $script:prefs.SiteCode; $txtSite.MaxLength = 3; $txtSite.Width = 80; $txtSite.HorizontalAlignment = 'Left'; $txtSite.Height = 28; [Windows.Automation.AutomationProperties]::SetAutomationId($txtSite, 'txtSiteCode')
     [void]$connection.Children.Add($txtSite)
@@ -127,13 +127,13 @@ function Show-PasOptionsDialog {
     [void]$connection.Children.Add((New-PasOptionsText 'A value saved here wins. The suite launcher fills an empty value. Enter the provider name that its certificate carries, normally the FQDN. Select Resolve Targets again after a change.' 11 -Margin '0,10,0,0' -Muted))
 
     $scripts = [Windows.Controls.StackPanel]::new()
-    [void]$scripts.Children.Add((New-PasOptionsText 'Run Scripts' 18 -Bold -Margin '0,0,0,12'))
+    [void]$scripts.Children.Add((New-PasOptionsText 'Run Scripts' 18 -Weight SemiBold -Margin '0,0,0,12'))
     $chkApprove = [Windows.Controls.CheckBox]::new(); $chkApprove.Content = 'Approve scripts after submission'; $chkApprove.IsChecked = [bool]$script:prefs.ApproveAfterSubmit; [Windows.Automation.AutomationProperties]::SetAutomationId($chkApprove, 'chkApproveAfterSubmit')
     [void]$scripts.Children.Add($chkApprove)
     [void]$scripts.Children.Add((New-PasOptionsText 'Configuration Manager decides. By default, the site requires a second approver, and the author cannot approve. Microsoft recommends allowing authors to approve their own scripts only in a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.' 11 -Margin '0,10,0,0' -Muted))
 
     $about = [Windows.Controls.StackPanel]::new()
-    [void]$about.Children.Add((New-PasOptionsText 'Pivots and Scripts' 18 -Bold -Margin '0,0,0,12'))
+    [void]$about.Children.Add((New-PasOptionsText 'Pivots and Scripts' 18 -Weight SemiBold -Margin '0,0,0,12'))
     [void]$about.Children.Add((New-PasOptionsText ('Version ' + $script:appVersion)))
     $suiteVersion = ''
     try { $suiteVersion = Get-SuiteCommonVersion } catch { $null = Get-PasUserErrorText -ErrorRecord $_ -Fallback '' -LogDetail }

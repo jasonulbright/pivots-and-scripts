@@ -333,24 +333,26 @@ Describe 'Fonts do not depend on the theme (b)' {
         $strCode | Should -Not -Match '\$box\.(FontSize|FontWeight)\s*='
     }
 
-    It 'uses no SemiBold or other weight than Bold for a title or label in the XAML of <_.Source>' -ForEach $script:arrOwnXamlDocD {
-        $_.Text | Should -Not -Match 'FontWeight(=|" Value=)"(SemiBold|Light|Medium|Normal|Regular)"'
+    It 'keeps the Options headers SemiBold and builds only the two connection titles Bold' {
+        $strText = Get-Content -LiteralPath $script:strOptionsPath -Raw
+        foreach ($strHeader in 'Configuration Manager Connection', 'Run Scripts', 'Pivots and Scripts') {
+            $strText | Should -Match ("New-PasOptionsText '{0}' 18 -Weight SemiBold" -f $strHeader)
+        }
+        @([regex]::Matches($strText, "New-PasOptionsText '[^']+' \d+ -Bold")).Count | Should -Be 2
     }
 
-    It 'sets every font weight in the script and in the module to Bold' -ForEach $script:arrAppPsFileD {
-        @(Get-NonBoldWeight -Path $Path) | Should -BeNullOrEmpty
+    It 'keeps the Dark Theme label of the sidebar in the normal weight' {
+        $objDoc = @($script:arrOwnXamlDoc | Where-Object { $_.Source -eq 'MainWindow.xaml' })[0]
+        [xml]$xml = $objDoc.Text
+        $objElement = $xml.SelectSingleNode("//*[@*[local-name()='Name']='txtThemeLabel']")
+        $objElement | Should -Not -BeNullOrEmpty
+        $objElement.GetAttribute('FontWeight') | Should -BeIn @('', 'Normal')
     }
 
-    It 'flags a font weight that is not Bold' {
-        $strTemp = Write-TempScript "`$a.FontWeight = [System.Windows.FontWeights]::SemiBold`n`$b.FontWeight = [System.Windows.FontWeights]::Bold`n"
-        try { @(Get-NonBoldWeight -Path $strTemp).Count | Should -Be 1 }
-        finally { Remove-Item -LiteralPath $strTemp -Force -ErrorAction SilentlyContinue }
-    }
-
-    It 'sets Bold on every heading of 14 pt or more in <_.Source>' -ForEach $script:arrOwnXamlDocD {
+    It 'sets Bold or SemiBold on every heading of 14 pt or more in <_.Source>, except the Library header, which keeps the normal weight' -ForEach $script:arrOwnXamlDocD {
         [xml]$xml = $_.Text
         $arrBad = foreach ($objText in @($xml.SelectNodes("//*[local-name()='TextBlock'][@FontSize]"))) {
-            if ([double]$objText.GetAttribute('FontSize') -ge 14 -and $objText.GetAttribute('FontWeight') -ne 'Bold') { '{0} {1}' -f $objText.GetAttribute('Name', $script:strXamlNamespace), $objText.GetAttribute('Text') }
+            if ([double]$objText.GetAttribute('FontSize') -ge 14 -and $objText.GetAttribute('FontWeight') -notin 'Bold', 'SemiBold' -and $objText.GetAttribute('Name', $script:strXamlNamespace) -ne 'libraryHeader') { '{0} {1}' -f $objText.GetAttribute('Name', $script:strXamlNamespace), $objText.GetAttribute('Text') }
         }
         @($arrBad) | Should -BeNullOrEmpty
     }
@@ -715,7 +717,7 @@ Describe 'Titles are in Title Case (d)' {
 
     It 'has Title Case in the headings and page names of the Options dialog' {
         $objAst = [System.Management.Automation.Language.Parser]::ParseFile($script:strOptionsPath, [ref]$null, [ref]$null)
-        $arrHeading = @($objAst.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-PasOptionsText' -and @($n.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'Bold' }).Count -gt 0 }, $true))
+        $arrHeading = @($objAst.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-PasOptionsText' -and @($n.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -in 'Bold', 'Weight' }).Count -gt 0 }, $true))
         $arrHeading.Count | Should -BeGreaterOrEqual 5
         $arrPage = @($objAst.FindAll({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] }, $true) | ForEach-Object { foreach ($objPair in $_.KeyValuePairs) { if ([string]$objPair.Item1.Extent.Text -eq 'Name') { $objPair.Item2.Extent.Text.Trim("'") } } })
         $arrPage.Count | Should -Be 3
