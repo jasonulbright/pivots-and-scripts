@@ -287,7 +287,7 @@ $window.Add_Closing({param($s,$e) if($script:work){$e.Cancel=$true;$script:work.
 Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')
 # Footer: the shared footer style of SuiteCommon and the site connection at the right end. Select it to open Options.
 $window.Add_Loaded({
-    try{Initialize-SuiteFooter -Window $window -StatusName 'status' -OnOpenOptions {try{Show-PasOptionsDialog}catch{Show-PasError $_}} | Out-Null}catch{Write-PasLog 'The footer was not set up.'}
+    try{Initialize-SuiteFooter -Window $window -StatusName 'status' -OnOpenOptions {if($script:work){return};try{Show-PasOptionsDialog}catch{Show-PasError $_}} | Out-Null}catch{Write-PasLog 'The footer was not set up.'}
     Update-PasFooter
 })
 Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
