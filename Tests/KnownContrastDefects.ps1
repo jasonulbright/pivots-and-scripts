@@ -6,9 +6,7 @@
 # Text must reach 4.5:1 and a control border 3:1, enabled and disabled, in both
 # themes. Accepted limit: SuiteCommon sets a local Foreground, Background and BorderBrush on the four sidebar buttons. A local value beats
 # the disabled trigger of the button style, so their disabled state is what SuiteCommon paints. The fix belongs in app-packager-suite.
-# Two defects remain, both in the light theme:
-#   - titlebar:inactive. SuiteCommon paints the inactive title bar #4BA3E0 in the light theme (white text on it is below 4.5:1).
-#     The fix belongs in app-packager-suite, then a sync of the vendored copy, not here.
+# One defect remains, in the light theme:
 #   - targetKind:EnabledText and targetKind:DisabledText. The MahApps combo box draws its drop-down arrow glyph in a content
 #     presenter with Opacity 0.5. The measure reads the glyph as text: black at half opacity on white is 3.95:1 (a graphic
 #     needs 3:1). The glyph is part of the MahApps template; the dark theme passes.
@@ -16,7 +14,7 @@ function Get-KnownContrastDefect {
     param([Parameter(Mandatory)][ValidateSet('dark', 'light')][string]$Theme)
     switch ($Theme) {
         'dark' { @() }
-        'light' { @('targetKind:DisabledText', 'targetKind:EnabledText', 'titlebar:inactive') }
+        'light' { @('targetKind:DisabledText', 'targetKind:EnabledText') }
     }
 }
 
