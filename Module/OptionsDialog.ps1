@@ -42,6 +42,8 @@ function Show-PasOptionsDialog {
    </ControlTemplate.Triggers>
   </ControlTemplate>
   <Style x:Key="ThemedButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+
+   <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Gray2}"/>
    <Setter Property="Template" Value="{StaticResource ThemedButtonTemplate}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
    <Setter Property="BorderThickness" Value="1"/>
@@ -63,7 +65,7 @@ function Show-PasOptionsDialog {
   <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
    <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Gray10}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
-   <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+   <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Gray2}"/>
    <Setter Property="MinWidth" Value="120"/>
    <Setter Property="Height" Value="32"/>
    <Setter Property="Margin" Value="0,0,8,0"/>
@@ -71,7 +73,7 @@ function Show-PasOptionsDialog {
   <!-- The accent fill is the theme highlight: white text is 7:1 on both themes. The border is the theme foreground. The plain accent fill of the light theme is 4.49:1. -->
   <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
    <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Highlight}"/>
-   <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+   <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
    <Setter Property="MinWidth" Value="120"/>
    <Setter Property="Height" Value="32"/>
