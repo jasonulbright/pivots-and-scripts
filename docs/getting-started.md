@@ -49,7 +49,7 @@ If you select **Test Connection** before you set the connection, a message tells
 
 ![The Connection page with values](images/options-connection.png)
 
-The footer shows the values at the right end: `MCM` and `cm01.contoso.com`, as `Site MCM · cm01.contoso.com`. Before you set them, the footer shows `Site not set`. The footer is read-only text. Select it to open **Options**. You change the site code and the SMS Provider only in **Options**.
+The footer shows the values at the right end: `MCM` and `cm01.contoso.com`, as `Site MCM`, a middle dot, and `cm01.contoso.com`. Before you set them, the footer shows `Site not set`. The footer is read-only text. Select it to open **Options**. You change the site code and the SMS Provider only in **Options**.
 
 ![The window with the connection set](images/connection-set.png)
 

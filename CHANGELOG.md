@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Make the PowerShell sources and the files they read plain ASCII, and add the encoding guard.
+
 ## [2026.11.14.0012] - 2026-11-14
 
 ## 4.5:1 or more contrast on the inactive title bar in both themes
@@ -25,7 +29,7 @@
 ### Added
 
 - Add FontWeight.Guard.Tests.ps1 and FontWeightGuardHelpers.ps1. They fail when a bold weight is set on a label that is not a field title or an app title, in XAML, in the XAML of the scripts and in code that sets a weight at run time.
-- Show the site code and the SMS Provider in the footer, at the right end: `Site MCM · cm01.contoso.com`. The footer shows `Site not set` before you set them. The text is read-only. Select it to open Options. The footer is the only place that shows the site: the header line with the site code and the SMS Provider is removed. The footer refreshes after the window loads, after the Options dialog saves and after a connect. The status line is now a full-width bar at the bottom of the window.
+- Show the site code and the SMS Provider in the footer, at the right end: `Site MCM`, a middle dot, and `cm01.contoso.com`. The footer shows `Site not set` before you set them. The text is read-only. Select it to open Options. The footer is the only place that shows the site: the header line with the site code and the SMS Provider is removed. The footer refreshes after the window loads, after the Options dialog saves and after a connect. The status line is now a full-width bar at the bottom of the window.
 - Add Footer.Guard.Tests.ps1. It checks the footer status element, the shared footer font, the footer calls and the rule that the site code and the SMS Provider are editable only in the Options dialog. It has bad-sample tests.
 
 ### Changed
