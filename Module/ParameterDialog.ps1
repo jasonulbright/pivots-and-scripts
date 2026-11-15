@@ -24,8 +24,8 @@ function Show-PasParameterDialog {
      <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
     </Trigger>
     <Trigger Property="IsPressed" Value="True">
-     <Setter TargetName="Bd" Property="Background" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
-     <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{DynamicResource MahApps.Brushes.ThemeBackground}"/>
+     <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+     <Setter TargetName="Bd" Property="Padding" Value="1,1,0,0"/>
     </Trigger>
    </ControlTemplate.Triggers>
   </ControlTemplate>
@@ -51,6 +51,7 @@ function Show-PasParameterDialog {
        primary one use it, at one size (MinWidth fits the longest label). The primary dialog style is DialogAccentButton. No other dialog button style sets a Background.
        Every dialog of the app has the same two styles. -->
   <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+   <Setter Property="Template" Value="{DynamicResource SuiteNeutralButtonTemplate}"/>
    <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Gray10}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
    <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Gray2}"/>
@@ -58,9 +59,10 @@ function Show-PasParameterDialog {
    <Setter Property="Height" Value="32"/>
    <Setter Property="Margin" Value="0,0,8,0"/>
   </Style>
-  <!-- The accent fill is the theme highlight: white text is 7:1 on both themes. The border is the theme foreground. The plain accent fill of the light theme is 4.49:1. -->
+  <!-- The accent fill is the accent base, the same as the other suite apps: bold white text is 4.5:1 or more on both themes, and the shared accent template steps it darker on hover and pressed. -->
   <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
-   <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Highlight}"/>
+   <Setter Property="Template" Value="{DynamicResource SuiteAccentButtonTemplate}"/>
+   <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
    <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
    <Setter Property="MinWidth" Value="120"/>

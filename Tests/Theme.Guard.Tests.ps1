@@ -535,20 +535,22 @@ Describe 'Every button takes the shared themed style (d)' {
         @(Get-ButtonOpacityViolation -Text "<Grid $script:strNamespace><Grid.Resources>$strOk</Grid.Resources></Grid>" -Source 's').Count | Should -Be 0
     }
 
-    It 'shows hover and focus as the theme foreground border and pressed as swapped theme colors in <_.Source>' -ForEach $script:arrOwnXamlDocD {
+    It 'shows hover and focus as the theme foreground border and pressed as the same border with a one pixel shift, never a swapped fill, in <_.Source>' -ForEach $script:arrOwnXamlDocD {
         @(Get-ButtonStateViolation -Text $_.Text -Source $_.Source) | Should -BeNullOrEmpty
     }
 
     It 'flags a button template without the hover, focus or pressed rule' {
         $strHover = '<Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/></Trigger>'
         $strFocus = '<Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/></Trigger>'
-        $strPressed = '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/><Setter TargetName="Cp" Property="TextElement.Foreground" Value="{DynamicResource MahApps.Brushes.ThemeBackground}"/></Trigger>'
+        $strPressed = '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/><Setter TargetName="Bd" Property="Padding" Value="1,1,0,0"/></Trigger>'
         $strOpen = "<Grid $script:strNamespace><Grid.Resources><ControlTemplate x:Key=`"ThemedButtonTemplate`" TargetType=`"Button`"><Border Name=`"Bd`"/><ControlTemplate.Triggers>"
         $strClose = '</ControlTemplate.Triggers></ControlTemplate></Grid.Resources></Grid>'
         @(Get-ButtonStateViolation -Text ($strOpen + $strHover + $strFocus + $strPressed + $strClose) -Source 's').Count | Should -Be 0
         @(Get-ButtonStateViolation -Text ($strOpen + $strFocus + $strPressed + $strClose) -Source 's').Count | Should -Be 1
         @(Get-ButtonStateViolation -Text ($strOpen + $strHover + $strPressed + $strClose) -Source 's').Count | Should -Be 1
         @(Get-ButtonStateViolation -Text ($strOpen + $strHover + $strFocus + $strClose) -Source 's').Count | Should -Be 2
+        $strSwap = '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/><Setter TargetName="Bd" Property="Padding" Value="1,1,0,0"/><Setter TargetName="Bd" Property="Background" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/></Trigger>'
+        @(Get-ButtonStateViolation -Text ($strOpen + $strHover + $strFocus + $strSwap + $strClose) -Source 's').Count | Should -Be 1
         @(Get-ButtonStateViolation -Text "<Grid $script:strNamespace/>" -Source 's').Count | Should -Be 1
     }
 

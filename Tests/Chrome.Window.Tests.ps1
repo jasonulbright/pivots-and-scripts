@@ -14,6 +14,8 @@
 #       the surface is on the side of the theme (light above 0.5 luminance, dark below 0.25), it matches the main window
 #       within 0.1, window text and every input text keep 4.5:1, and every input surface is on the theme side
 #   - every window that the measuring script opens is closed in a finally block
+#   - the caption of the main window is readable (4.5:1) on the bar of its state, active and behind a dialog; the inactive
+#     light bar is #4BA3E0 with #333333 text, the dark inactive caption is not #333333; every dialog caption keeps 4.5:1
 
 BeforeDiscovery {
     . "$PSScriptRoot\WindowHarness.ps1"
@@ -71,7 +73,7 @@ BeforeAll {
                 $mainBody = Get-SuiteWindowBody -Window $main -Label 'main'
                 $out = [pscustomobject]@{
                     ThemeText = $mainChrome.ThemeText
-                    MainTitle = $mainChrome.Active; MainTitleInactive = $mainChrome.Inactive
+                    MainChrome = $mainChrome; MainTitle = $mainChrome.Active; MainTitleInactive = $mainChrome.Inactive
                     Main = @($mainChrome.Buttons); MainBody = $mainBody; Dialogs = @(); Unmeasured = @()
                 }
                 $left = if ($env:SUITE_VISIBLE_WINDOWS -eq '1') { 120 } else { -32000 }
@@ -86,7 +88,9 @@ BeforeAll {
                         $d.ShowInTaskbar = $false
                         # The way the script gives the theme (Set-DialogTheme with the state of the theme toggle).
                         Set-DialogTheme -Dialog $d -IsDark $Arguments.Dark
-                        $d.Show(); Wait-Layout $d
+                        $d.Show(); Wait-Layout $d; Start-Sleep -Milliseconds 400; Wait-Layout $d
+                        # The first dialog has the focus now: measure the main window behind it (inactive).
+                        if ($i -eq 1) { $out | Add-Member -NotePropertyName MainInactive -NotePropertyValue (Get-SuiteWindowChrome -Window $main -Label 'main behind a dialog') }
                         $c = Get-SuiteWindowChrome -Window $d -Label ([string]$d.Title)
                         $body = Get-SuiteWindowBody -Window $d -Label ([string]$d.Title)
                         $out.Dialogs += [pscustomobject]@{ Title = $c.Title; Index = $i; Source = 'script'; Active = $c.Active; Inactive = $c.Inactive; TitleRatio = $c.TitleRatio; Buttons = @($c.Buttons); Body = $body }
@@ -220,6 +224,26 @@ Describe 'Chrome <Theme>' -ForEach $script:ThemeCases -Skip:(-not $script:Window
         $light = ($Theme -eq 'light')
         $bad = @()
         foreach ($d in $script:M.Dialogs) { foreach ($i in @($d.Body.Inputs)) { if ($null -ne $i.BackLuminance -and ((($light -and $i.BackLuminance -lt 0.4) -or (-not $light -and $i.BackLuminance -gt 0.3)))) { $bad += ('{0}: {1} {2} luminance {3}' -f $d.Title, $i.Kind, $i.Name, $i.BackLuminance) } } }
+        $bad | Should -BeNullOrEmpty
+    }
+
+    It 'shows the caption of the main window readable (4.5:1) on the bar of its state, active and behind a dialog' {
+        $script:M.MainChrome.TitleRatio | Should -BeGreaterOrEqual 4.5
+        $script:M.MainInactive.IsActive | Should -BeFalse -Because 'the dialog took the focus'
+        $script:M.MainInactive.TitleRatio | Should -BeGreaterOrEqual 4.5
+    }
+
+    It 'gives the inactive light title bar blue with dark caption text, and the dark one white text' {
+        if ($Theme -eq 'light') {
+            $script:M.MainInactive.TitleBrushNow | Should -Be '#FF4BA3E0'
+            $script:M.MainInactive.TitleText | Should -Be '#FF333333'
+        }
+        else { $script:M.MainInactive.TitleText | Should -Not -Be '#FF333333' }
+        $script:M.MainChrome.TitleText | Should -Not -Be '#FF333333' -Because 'the active caption is white'
+    }
+
+    It 'gives every dialog the caption text of its state (4.5:1)' {
+        $bad = @($script:M.Dialogs | Where-Object { $_.TitleRatio -lt 4.5 } | ForEach-Object { '{0}: {1}' -f $_.Title, $_.TitleRatio })
         $bad | Should -BeNullOrEmpty
     }
 }
