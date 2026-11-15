@@ -461,7 +461,8 @@ function Test-TemplateTriggerSetter {
 }
 
 # Returns one text per rule of the button template that a document breaks: the hover and the keyboard focus show the theme
-# foreground as the border color, a pressed button swaps the theme foreground and the theme background.
+# foreground as the border color, and a pressed button keeps its fill (a blue button stays blue, a gray one stays gray) and shows
+# the theme foreground border and a one pixel shift of the content.
 function Get-ButtonStateViolation {
     param([string]$Text, [string]$Source)
     [xml]$xml = $Text
@@ -469,11 +470,16 @@ function Get-ButtonStateViolation {
     $objTemplate = $xml.SelectSingleNode("//*[local-name()='ControlTemplate'][@*[local-name()='Key']='ThemedButtonTemplate']")
     if (-not $objTemplate) { return @(('{0}: no ThemedButtonTemplate' -f $Source)) }
     $strForeground = '{DynamicResource MahApps.Brushes.ThemeForeground}'
-    $strBackground = '{DynamicResource MahApps.Brushes.ThemeBackground}'
     if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsMouseOver' -Target 'Bd' -Property 'BorderBrush' -Value $strForeground)) { [void]$listFound.Add(('{0}: hover does not set the border to the theme foreground' -f $Source)) }
     if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsKeyboardFocused' -Target 'Bd' -Property 'BorderBrush' -Value $strForeground)) { [void]$listFound.Add(('{0}: keyboard focus does not set the border to the theme foreground' -f $Source)) }
-    if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsPressed' -Target 'Bd' -Property 'Background' -Value $strForeground)) { [void]$listFound.Add(('{0}: pressed does not set the background to the theme foreground' -f $Source)) }
-    if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsPressed' -Target 'Cp' -Property 'TextElement.Foreground' -Value $strBackground)) { [void]$listFound.Add(('{0}: pressed does not set the text to the theme background' -f $Source)) }
+    if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsPressed' -Target 'Bd' -Property 'BorderBrush' -Value $strForeground)) { [void]$listFound.Add(('{0}: pressed does not set the border to the theme foreground' -f $Source)) }
+    if (-not (Test-TemplateTriggerSetter -Template $objTemplate -Trigger 'IsPressed' -Target 'Bd' -Property 'Padding' -Value '1,1,0,0')) { [void]$listFound.Add(('{0}: pressed does not shift the content by one pixel' -f $Source)) }
+    # A pressed button that swaps the fill to the theme foreground turns a blue button black: the fill stays.
+    foreach ($objTrigger in @($objTemplate.SelectNodes(".//*[local-name()='Trigger'][@Property='IsPressed']"))) {
+        foreach ($objSetter in @($objTrigger.ChildNodes | Where-Object { $_.LocalName -eq 'Setter' })) {
+            if ($objSetter.GetAttribute('Property') -eq 'Background' -or $objSetter.GetAttribute('Property') -eq 'TextElement.Foreground') { [void]$listFound.Add(('{0}: pressed changes the fill or the text color ({1})' -f $Source, $objSetter.GetAttribute('Property'))) }
+        }
+    }
     return $listFound.ToArray()
 }
 

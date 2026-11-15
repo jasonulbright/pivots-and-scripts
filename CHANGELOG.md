@@ -2,8 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Keep blue buttons blue and gray buttons gray when hovered or pressed.
+- Show the inactive title bar in light blue with dark caption text.
+
 ### Added
 
+- Test the button states of a dialog and the title bar caption of every window.
 - Close every window that a window test leaves open, also after a failure.
 - Check the body of every dialog against the theme: surface, text contrast, inputs.
 

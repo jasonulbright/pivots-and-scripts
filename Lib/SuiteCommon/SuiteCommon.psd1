@@ -42,6 +42,9 @@
         # Theming
         'Initialize-SuiteTheme'
         'Update-TitleBarBrushes'
+        'Set-SuiteTitleForeground'
+        'Set-SuiteAccentButtonResource'
+        'Register-SuiteTitleForeground'
         'Update-SidebarButtonTheme'
         'Set-ButtonTheme'
         'Set-DialogTheme'
@@ -67,6 +70,7 @@
         'Get-SuiteButtonRow'
         'Get-SuiteWindowChrome'
         'Get-SuiteWindowBody'
+        'Get-SuiteTitleBarContrast'
         'Close-SuiteOpenWindow'
         'Get-SuiteRelativeLuminance'
         'Get-SuiteButtonStateReport'
