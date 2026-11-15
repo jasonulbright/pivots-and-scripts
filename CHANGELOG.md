@@ -5,6 +5,7 @@
 ### Changed
 
 - Keep blue buttons blue and gray buttons gray when hovered or pressed.
+- Retake the guide images with the current buttons and title bars.
 - Show the inactive title bar in light blue with dark caption text.
 
 ### Added
