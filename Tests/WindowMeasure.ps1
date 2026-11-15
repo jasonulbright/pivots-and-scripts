@@ -158,9 +158,22 @@ $script:MeasureFunctions = {
         param($Control, $Window)
         $winBg = (Get-SolidColor $Window.Background)
         $under = if ($winBg) { Merge-Color $winBg.Color $winBg.Opacity ([System.Windows.Media.Colors]::Black) } else { [System.Windows.Media.Colors]::White }
-        $own = Get-SolidColor $Control.Background
+        # The fill of the template (the Border named Bd) is what shows; a control without one shows its own Background.
+        $bdFill = $null
+        if ($Control -is [System.Windows.Controls.Primitives.ButtonBase]) { $bdFill = Get-VisualDescendants $Control | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Name -eq 'Bd' } | Select-Object -First 1 }
+        $own = if ($bdFill -and (Get-SolidColor $bdFill.Background)) { Get-SolidColor $bdFill.Background } else { Get-SolidColor $Control.Background }
         $backdrop = Get-BackdropColor $Control $under $Window
         if ($own -and ($own.Color.A * $own.Opacity) -gt 0) { $backdrop = Merge-Color $own.Color $own.Opacity $backdrop }
+        # The MahApps text box and combo box dim a disabled control with an overlay (DisabledVisualElement): a translucent fill of the
+        # backdrop color that fades text and backdrop alike. Only a visible overlay counts (an enabled combo box keeps a hidden one). Fold it into the measurement, or the disabled state reads as not dimmed.
+        $overlay = Get-VisualDescendants $Control | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Name -eq 'DisabledVisualElement' -and $_.IsVisible } | Select-Object -First 1
+        $ovColor = $null; $ovAlpha = 0.0
+        if ($overlay -and (Get-SolidColor $overlay.Background)) {
+            $ovSolid = Get-SolidColor $overlay.Background
+            $ovColor = $ovSolid.Color
+            $ovAlpha = ($ovSolid.Color.A / 255.0) * $ovSolid.Opacity * (Get-ElementOpacity $overlay)
+            if ($ovAlpha -gt 0) { $backdrop = Merge-Color $ovColor $ovAlpha $backdrop }
+        }
         $o = Get-ElementOpacity $Control
         $row = [ordered]@{ Name = $Control.Name; Type = $Control.GetType().Name; Backdrop = $backdrop.ToString(); TextRatio = $null; BorderRatio = $null }
         $worst = $null
@@ -169,12 +182,13 @@ $script:MeasureFunctions = {
             $sc = Get-SolidColor $t.Foreground
             if (-not $sc) { continue }
             $fgc = Merge-Color $sc.Color ((Get-ElementOpacity $t) * $sc.Opacity) $backdrop
+            if ($ovAlpha -gt 0) { $fgc = Merge-Color $ovColor $ovAlpha $fgc }
             $r = Get-ContrastRatio $fgc $backdrop
             if ($null -eq $worst -or $r -lt $worst) { $worst = $r }
         }
         if ($Control -is [System.Windows.Controls.TextBox] -and -not [string]::IsNullOrWhiteSpace($Control.Text)) {
             $sc = Get-SolidColor $Control.Foreground
-            if ($sc) { $r = Get-ContrastRatio (Merge-Color $sc.Color ($o * $sc.Opacity) $backdrop) $backdrop; if ($null -eq $worst -or $r -lt $worst) { $worst = $r } }
+            if ($sc) { $tc = Merge-Color $sc.Color ($o * $sc.Opacity) $backdrop; if ($ovAlpha -gt 0) { $tc = Merge-Color $ovColor $ovAlpha $tc }; $r = Get-ContrastRatio $tc $backdrop; if ($null -eq $worst -or $r -lt $worst) { $worst = $r } }
         }
         if ($null -ne $worst) { $row.TextRatio = $worst }
         $bsc = Get-SolidColor $Control.BorderBrush
@@ -208,7 +222,7 @@ $script:MeasureFunctions = {
                 if ($local -eq [System.Windows.DependencyProperty]::UnsetValue) { $c.ClearValue([System.Windows.UIElement]::IsEnabledProperty) } else { $c.IsEnabled = [bool]$local }
                 Wait-Layout $Window 1
             }
-            $rows += [PSCustomObject]@{ Name = $c.Name; Type = $en.Type; EnabledText = $en.TextRatio; DisabledText = $dis.TextRatio; EnabledBorder = $en.BorderRatio; DisabledBorder = $dis.BorderRatio }
+            $rows += [PSCustomObject]@{ Name = $c.Name; Type = $en.Type; EnabledText = $en.TextRatio; DisabledText = $dis.TextRatio; EnabledBackdrop = $en.Backdrop; DisabledBackdrop = $dis.Backdrop; EnabledBorder = $en.BorderRatio; DisabledBorder = $dis.BorderRatio }
         }
         return $rows
     }

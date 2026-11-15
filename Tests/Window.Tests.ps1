@@ -360,6 +360,11 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
         $tb.Inactive | Should -BeGreaterOrEqual 4.5
     }
 
+    It 'dims every disabled control: enabled text / disabled text at least 1.25, disabled text at least 1.5' {
+        $bad = @(Get-DimmedControlViolation -Views @($script:Measured['{0}|1440x900' -f $Theme]))
+        $bad | Should -BeNullOrEmpty -Because ('a disabled control must look dimmed and stay readable: ' + ($bad -join '; '))
+    }
+
     It 'meets the standard on every control, except the listed known defects' {
         $known = Get-KnownContrastDefect -Theme $Theme
         $found = @(Get-ContrastViolationKey -Views @($script:Measured['{0}|1440x900' -f $Theme]))
