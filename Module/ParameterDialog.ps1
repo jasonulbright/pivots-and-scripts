@@ -59,10 +59,10 @@ function Show-PasParameterDialog {
    <Setter Property="Height" Value="32"/>
    <Setter Property="Margin" Value="0,0,8,0"/>
   </Style>
-  <!-- The accent fill is the theme highlight: white text is 7:1 on both themes. The border is the theme foreground. The plain accent fill of the light theme is 4.49:1. -->
+  <!-- The accent fill is the accent base, the same as the other suite apps: bold white text is 4.5:1 or more on both themes, and the shared accent template steps it darker on hover and pressed. -->
   <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
    <Setter Property="Template" Value="{DynamicResource SuiteAccentButtonTemplate}"/>
-   <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Highlight}"/>
+   <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
    <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
    <Setter Property="MinWidth" Value="120"/>
