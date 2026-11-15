@@ -91,7 +91,7 @@ if ($testFiles.Count -eq 0) { Write-Host 'No test file found.'; exit 1 }
 # Window tests open windows. They run only where the guard allows it (see Tests\WindowHarness.ps1).
 . (Join-Path $root 'Tests\WindowHarness.ps1')
 $windowGuard = Test-WindowTestsAllowed
-$windowTestFiles = 'Window.Tests.ps1', 'Shell.Smoke.Tests.ps1'
+$windowTestFiles = 'Window.Tests.ps1', 'Shell.Smoke.Tests.ps1', 'Chrome.Window.Tests.ps1', 'ButtonStates.Window.Tests.ps1'
 $windowTestsRun = $windowGuard.Allowed -and -not $SkipWindow
 $windowSkipReported = $false
 if (-not $windowGuard.Allowed) {

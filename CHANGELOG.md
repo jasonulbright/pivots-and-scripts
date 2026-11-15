@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add the button state window test: hover, focus and pressed states of the buttons in both themes.
+- Add the dialog chrome window test: title bar brush, title contrast, bold text and 1 px borders on the main window and every dialog.
+- Share one window test session across the window test files.
+- Refresh the vendored SuiteCommon library to release 2026.11.14.0086.
+
 ## [2026.11.14.0013] - 2026-11-14
 
 ## 1 px gray borders on every button in both themes
