@@ -39,6 +39,11 @@ function Show-PasOptionsDialog {
      <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
      <Setter TargetName="Bd" Property="Padding" Value="1,1,0,0"/>
     </Trigger>
+     <Trigger Property="IsEnabled" Value="False">
+     <Setter TargetName="Bd" Property="Background" Value="{DynamicResource MahApps.Brushes.ThemeBackground}"/>
+     <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Gray2}"/>
+     <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{DynamicResource MahApps.Brushes.Gray.MouseOver}"/>
+    </Trigger>
    </ControlTemplate.Triggers>
   </ControlTemplate>
   <Style x:Key="ThemedButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">

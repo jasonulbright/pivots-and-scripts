@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Treat disabled controls as exempt from 4.5:1 text contrast and require them to look dimmed.
+
 ## [2026.11.15.0015] - 2026-11-15
 
 ## 29 guide images retaken with blue pressed buttons and light blue inactive title bars
