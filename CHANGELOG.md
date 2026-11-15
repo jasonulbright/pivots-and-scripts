@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2026.11.15.0016] - 2026-11-15
+
+## 4 sidebar buttons now dim when disabled
+
+### Changed
+
+- Dim the sidebar buttons when disabled.
+
 ### Added
 
 - Treat disabled controls as exempt from 4.5:1 text contrast and require them to look dimmed.
