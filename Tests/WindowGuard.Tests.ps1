@@ -112,16 +112,16 @@ Describe 'Get-WpfSession refuses where the guard says no' {
     BeforeAll {
         Mock Test-WindowTestsAllowed { [pscustomobject]@{ Allowed = $false; Reason = 'test' } }
     }
-    AfterEach { $script:HarnessSession = $null }
+    AfterEach { $global:HarnessSession = $null }
 
     It 'throws and creates no session' {
-        $script:HarnessSession = $null
+        $global:HarnessSession = $null
         { Get-WpfSession } | Should -Throw '*not allowed*'
-        $script:HarnessSession | Should -BeNullOrEmpty
+        $global:HarnessSession | Should -BeNullOrEmpty
     }
 
     It 'does not hand out a cached session' {
-        $script:HarnessSession = [pscustomobject]@{ RunspaceStateInfo = [pscustomobject]@{ State = 'Opened' } }
+        $global:HarnessSession = [pscustomobject]@{ RunspaceStateInfo = [pscustomobject]@{ State = 'Opened' } }
         { Get-WpfSession } | Should -Throw '*not allowed*'
     }
 }
