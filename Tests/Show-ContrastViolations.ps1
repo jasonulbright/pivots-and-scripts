@@ -20,24 +20,28 @@ try {
     foreach ($dark in $true, $false) {
         $r = Invoke-WpfSta -Arguments @{ Dark = $dark; Config = $script:AppConfig; ModeFunctions = $modeFunctions } -Script {
             $cfg = $Arguments.Config
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
-            foreach ($text in $Arguments.ModeFunctions) { . ([scriptblock]::Create($text)) }
-            $global:ui = @{}
-            foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
-            $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
-            Set-TestFixtureText $w
-            $script:mode = 'Pivot'
-            $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
-            $out = @()
-            foreach ($view in $cfg.Views) {
-                $global:HarnessActiveView = $view.Mode
-                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $view.Mode
-                Set-PasMode $view.Mode
-                if ($view.Mode -eq 'Pivot') { $global:ui.editor.Text = 'Disk | project Device, Name, FreeSpace' }
-                Wait-Layout $w
-                $out += [PSCustomObject]@{ Text = @(Get-TextContrast $w); Interactive = @(Get-InteractiveContrast $w); TitleBar = Get-TitleBarContrast $w }
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
+                foreach ($text in $Arguments.ModeFunctions) { . ([scriptblock]::Create($text)) }
+                $global:ui = @{}
+                foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
+                $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
+                Set-TestFixtureText $w
+                $script:mode = 'Pivot'
+                $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
+                $out = @()
+                foreach ($view in $cfg.Views) {
+                    $global:HarnessActiveView = $view.Mode
+                    Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $view.Mode
+                    Set-PasMode $view.Mode
+                    if ($view.Mode -eq 'Pivot') { $global:ui.editor.Text = 'Disk | project Device, Name, FreeSpace' }
+                    Wait-Layout $w
+                    $out += [PSCustomObject]@{ Text = @(Get-TextContrast $w); Interactive = @(Get-InteractiveContrast $w); TitleBar = Get-TitleBarContrast $w }
+                }
+                , $out
             }
-            $w.Close(); , $out
+            finally { if ($w) { $w.Close() } }
         }
         $keys = Get-ContrastViolationKey -Views @($r)
         Write-Host ("== {0}" -f $(if ($dark) { 'dark' } else { 'light' }))

@@ -176,5 +176,15 @@ function Invoke-WpfSta {
     }
     finally {
         $ps.Dispose()
+        # Close every window that the call left open (also after a throw), so no window stays on the desktop.
+        # A second small script on the same STA runspace; its errors are ignored.
+        $cleanup = [powershell]::Create()
+        try {
+            $cleanup.Runspace = $rs
+            [void]$cleanup.AddScript('if (Get-Command Close-SuiteOpenWindow -ErrorAction SilentlyContinue) { [void](Close-SuiteOpenWindow) }', $false)
+            [void]$cleanup.Invoke()
+        }
+        catch { $null = $_ }
+        finally { $cleanup.Dispose() }
     }
 }

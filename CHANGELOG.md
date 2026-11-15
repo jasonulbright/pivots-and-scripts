@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Close every window that a window test leaves open, also after a failure.
+- Check the body of every dialog against the theme: surface, text contrast, inputs.
+
 ## [2026.11.14.0014] - 2026-11-14
 
 ## 58 guide images retaken with 1 px gray buttons and real CMPivot results

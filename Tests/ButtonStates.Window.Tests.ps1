@@ -27,11 +27,14 @@ BeforeAll {
         $key = if ($dark) { 'dark' } else { 'light' }
         $script:Measured[$key] = Invoke-WpfSta -Arguments @{ Dark = $dark; Config = $script:AppConfig } -Script {
             $cfg = $Arguments.Config
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
-            Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $cfg.Views[0].Mode
-            Wait-Layout $w
-            try { Get-SuiteButtonStateReport -Window $w -Dark $Arguments.Dark }
-            finally { $w.Close() }
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
+                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $cfg.Views[0].Mode
+                Wait-Layout $w
+                Get-SuiteButtonStateReport -Window $w -Dark $Arguments.Dark
+            }
+            finally { if ($w) { $w.Close() } }
         }
     }
 }

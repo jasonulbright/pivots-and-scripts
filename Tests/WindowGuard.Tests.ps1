@@ -21,8 +21,31 @@ BeforeDiscovery {
             ForEach-Object { @{ Name = $_.FullName.Substring($script:RepoRoot.Length + 1); Path = $_.FullName } })
 }
 
+BeforeDiscovery {
+    # Every script of the test folder except the harness and this file: each one is checked for windows that stay open.
+    $script:CleanupFiles = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File -Recurse |
+            Where-Object { $_.Name -notin 'WindowHarness.ps1', 'WindowGuard.Tests.ps1' } |
+            ForEach-Object { @{ Name = $_.FullName.Substring($PSScriptRoot.Length + 1); Path = $_.FullName } })
+}
+
 BeforeAll {
     . "$PSScriptRoot\WindowHarness.ps1"
+
+    # Returns the lines of the places that open a window (.Show(), .ShowDialog(), Open-TestWindow) outside the Body of a
+    # try statement that has a finally block. Only the Body counts: a window opened in the finally itself is not covered.
+    function Get-UnguardedWindowOpen {
+        param([Parameter(Mandatory)][System.Management.Automation.Language.Ast]$Ast)
+        $isOpen = {
+            param($n)
+            ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Member.Value -in 'Show', 'ShowDialog') -or
+            ($n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Open-TestWindow')
+        }
+        $tries = @($Ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $null -ne $n.Finally }, $true))
+        foreach ($open in @($Ast.FindAll($isOpen, $true))) {
+            $covered = @($tries | Where-Object { $open.Extent.StartOffset -ge $_.Body.Extent.StartOffset -and $open.Extent.EndOffset -le $_.Body.Extent.EndOffset })
+            if ($covered.Count -eq 0) { $open.Extent.StartLineNumber }
+        }
+    }
 }
 
 Describe 'Test-WindowTestsAllowed' {
@@ -123,5 +146,32 @@ Describe 'Get-WpfSession refuses where the guard says no' {
     It 'does not hand out a cached session' {
         $global:HarnessSession = [pscustomobject]@{ RunspaceStateInfo = [pscustomobject]@{ State = 'Opened' } }
         { Get-WpfSession } | Should -Throw '*not allowed*'
+    }
+}
+
+Describe 'Window cleanup: no window stays open after a test' {
+    It 'closes the windows that a call leaves open inside the finally block of Invoke-WpfSta' {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'WindowHarness.ps1'), [ref]$null, [ref]$null)
+        $fn = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Invoke-WpfSta' }, $true)
+        $fn | Should -Not -BeNullOrEmpty
+        $tries = @($fn.Body.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $null -ne $n.Finally }, $true))
+        @($tries | Where-Object { $_.Finally.Extent.Text -match 'Close-SuiteOpenWindow' }).Count | Should -BeGreaterThan 0
+    }
+
+    It 'finds an unguarded window open in text, and accepts one inside a try with a finally' {
+        $bad = [System.Management.Automation.Language.Parser]::ParseInput('$w = Open-TestWindow -XamlPath x; $w.Show(); $w.Close()', [ref]$null, [ref]$null)
+        @(Get-UnguardedWindowOpen -Ast $bad).Count | Should -Be 2
+        $noFinally = [System.Management.Automation.Language.Parser]::ParseInput('try { $w = Open-TestWindow -XamlPath x } catch { $null = $_ }', [ref]$null, [ref]$null)
+        @(Get-UnguardedWindowOpen -Ast $noFinally).Count | Should -Be 1
+        $inFinally = [System.Management.Automation.Language.Parser]::ParseInput('try { 1 } finally { $d.ShowDialog() }', [ref]$null, [ref]$null)
+        @(Get-UnguardedWindowOpen -Ast $inFinally).Count | Should -Be 1
+        $good = [System.Management.Automation.Language.Parser]::ParseInput('try { $w = Open-TestWindow -XamlPath x; $w.Show() } finally { if ($w) { $w.Close() } }', [ref]$null, [ref]$null)
+        @(Get-UnguardedWindowOpen -Ast $good).Count | Should -Be 0
+    }
+
+    It 'opens a window in <Name> only inside a try with a finally' -ForEach $script:CleanupFiles {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+        $lines = @(Get-UnguardedWindowOpen -Ast $ast)
+        $lines | Should -BeNullOrEmpty -Because ('line {0}: a window is opened outside a try with a finally, so a failure leaves it on the desktop' -f ($lines -join ', '))
     }
 }
