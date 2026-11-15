@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.15.0015] - 2026-11-15
+
+## 29 guide images retaken with blue pressed buttons and light blue inactive title bars
+
 ### Changed
 
 - Keep blue buttons blue and gray buttons gray when hovered or pressed.
