@@ -2,14 +2,19 @@
 
 ## [Unreleased]
 
+## [2026.11.14.0014] - 2026-11-14
+
+## 58 guide images retaken with 1 px gray buttons and real CMPivot results
+
 ### Changed
 
-- Retake every guide image on the lab with 1 px gray button borders; the CMPivot results images show a real result of CLIENT01.
+- Retake every guide image on the lab with 1 px gray button borders.
+- Show a real CLIENT01 result in the CMPivot results images.
 
 ### Added
 
-- Add the button state window test: hover, focus and pressed states of the buttons in both themes.
-- Add the dialog chrome window test: title bar brush, title contrast, bold text and 1 px borders on the main window and every dialog.
+- Add the button state window test: hover, focus and pressed states in both themes.
+- Add the dialog chrome window test: title bar, bold text and 1 px borders.
 - Share one window test session across the window test files.
 - Refresh the vendored SuiteCommon library to release 2026.11.14.0086.
 
