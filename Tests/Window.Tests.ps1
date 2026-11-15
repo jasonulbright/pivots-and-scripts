@@ -95,40 +95,43 @@ BeforeAll {
         $case.ModeFunctions = $modeFunctions
         $script:Measured[$key] = Invoke-WpfSta -Arguments $case -Script {
             $cfg = $Arguments.Config
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark -Width $Arguments.W -Height $Arguments.H
-            # The real functions of the start script switch the view; they read these variables.
-            foreach ($text in $Arguments.ModeFunctions) { . ([scriptblock]::Create($text)) }
-            $global:ui = @{}
-            foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
-            $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
-            Set-TestFixtureText $w
-            $script:mode = 'Pivot'
-            $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
-            # Contrast is read only at 1440x900. Clipped text and off-screen controls are read at both sizes.
-            $full = $Arguments.W -ge 1440
-            $out = @()
-            foreach ($view in $cfg.Views) {
-                $global:HarnessActiveView = $view.Mode
-                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $view.Mode
-                Set-PasMode $view.Mode
-                if ($view.Mode -eq 'Pivot') { $global:ui.editor.Text = 'Disk | project Device, Name, FreeSpace' }
-                Wait-Layout $w
-                $out += [PSCustomObject]@{
-                    View        = $view.Name
-                    Heading     = [string]$global:ui.heading.Text
-                    GuidVisible = [string]$global:ui.scriptGuid.Visibility
-                    RunText     = [string]$global:ui.btnRun.Content
-                    MinWidth    = $w.MinWidth
-                    MinHeight   = $w.MinHeight
-                    Text        = if ($full) { @(Get-TextContrast $w) } else { @() }
-                    Clipped     = @(Get-ClippedText $w)
-                    Offscreen   = @(Get-OffscreenControls $w)
-                    Interactive = if ($full) { @(Get-InteractiveContrast $w) } else { @() }
-                    TitleBar    = if ($full) { Get-TitleBarContrast $w } else { $null }
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark -Width $Arguments.W -Height $Arguments.H
+                # The real functions of the start script switch the view; they read these variables.
+                foreach ($text in $Arguments.ModeFunctions) { . ([scriptblock]::Create($text)) }
+                $global:ui = @{}
+                foreach ($n in 'heading', 'editorLabel', 'btnRun', 'btnSubmit', 'guidLabel', 'scriptGuid', 'btnParameters', 'btnSiteScripts', 'editor', 'library', 'libraryFilter', 'toggleTheme') { $global:ui[$n] = $w.FindName($n) }
+                $global:ui.toggleTheme.IsOn = [bool]$Arguments.Dark
+                Set-TestFixtureText $w
+                $script:mode = 'Pivot'
+                $script:drafts = @{ Pivot = 'Disk | project Device, Name, FreeSpace'; Script = '' }
+                # Contrast is read only at 1440x900. Clipped text and off-screen controls are read at both sizes.
+                $full = $Arguments.W -ge 1440
+                $out = @()
+                foreach ($view in $cfg.Views) {
+                    $global:HarnessActiveView = $view.Mode
+                    Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $view.Mode
+                    Set-PasMode $view.Mode
+                    if ($view.Mode -eq 'Pivot') { $global:ui.editor.Text = 'Disk | project Device, Name, FreeSpace' }
+                    Wait-Layout $w
+                    $out += [PSCustomObject]@{
+                        View        = $view.Name
+                        Heading     = [string]$global:ui.heading.Text
+                        GuidVisible = [string]$global:ui.scriptGuid.Visibility
+                        RunText     = [string]$global:ui.btnRun.Content
+                        MinWidth    = $w.MinWidth
+                        MinHeight   = $w.MinHeight
+                        Text        = if ($full) { @(Get-TextContrast $w) } else { @() }
+                        Clipped     = @(Get-ClippedText $w)
+                        Offscreen   = @(Get-OffscreenControls $w)
+                        Interactive = if ($full) { @(Get-InteractiveContrast $w) } else { @() }
+                        TitleBar    = if ($full) { Get-TitleBarContrast $w } else { $null }
+                    }
                 }
+                , $out
             }
-            $w.Close()
-            , $out
+            finally { if ($w) { $w.Close() } }
         }
     }
 }
@@ -138,9 +141,12 @@ AfterAll { if (Get-Command Close-WpfSession -ErrorAction SilentlyContinue) { Clo
 Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'loads as a MetroWindow with the app title and a minimum size that fits 1024x720' {
         $r = Invoke-WpfSta -Arguments @{ Xaml = $script:AppConfig.Xaml } -Script {
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
-            $o = [PSCustomObject]@{ Type = $w.GetType().FullName; Title = $w.Title; MinW = $w.MinWidth; MinH = $w.MinHeight }
-            $w.Close(); $o
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
+                [PSCustomObject]@{ Type = $w.GetType().FullName; Title = $w.Title; MinW = $w.MinWidth; MinH = $w.MinHeight }
+            }
+            finally { if ($w) { $w.Close() } }
         }
         $r.Type | Should -Be 'MahApps.Metro.Controls.MetroWindow'
         $r.Title | Should -Be $script:AppConfig.Title
@@ -277,12 +283,14 @@ Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
             if ($probe.MinWidth -gt 0 -and $probe.MinHeight -gt 0) { $sizes += ,@($probe.MinWidth, $probe.MinHeight) }
             $probe = $null
             $rows = foreach ($s in $sizes) {
-                $w = Open-TestWindow -XamlText $Arguments.Xaml -Dark $Arguments.Dark -Width $s[0] -Height $s[1]
-                Set-DialogTheme -Dialog $w -IsDark $Arguments.Dark
-                Wait-Layout $w
-                $o = [PSCustomObject]@{ Size = ('{0}x{1}' -f $s[0], $s[1]); Clipped = @(Get-ClippedText $w); Offscreen = @(Get-OffscreenControls $w) }
-                $w.Close()
-                $o
+                $w = $null
+                try {
+                    $w = Open-TestWindow -XamlText $Arguments.Xaml -Dark $Arguments.Dark -Width $s[0] -Height $s[1]
+                    Set-DialogTheme -Dialog $w -IsDark $Arguments.Dark
+                    Wait-Layout $w
+                    [PSCustomObject]@{ Size = ('{0}x{1}' -f $s[0], $s[1]); Clipped = @(Get-ClippedText $w); Offscreen = @(Get-OffscreenControls $w) }
+                }
+                finally { if ($w) { $w.Close() } }
             }
             , @($rows)
         }
@@ -309,10 +317,13 @@ Describe 'Contrast measurement' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'measures a text block on its own solid background, not on the parent' {
         $xaml = '<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Probe" Width="300" Height="200"><StackPanel Background="#101010"><TextBlock x:Name="same" Text="White on white" Foreground="#FFFFFF" Background="#FFFFFF"/><TextBlock x:Name="plain" Text="White on dark" Foreground="#FFFFFF"/></StackPanel></Controls:MetroWindow>'
         $r = Invoke-WpfSta -Arguments @{ Xaml = $xaml } -Script {
-            $w = Open-TestWindow -XamlText $Arguments.Xaml
-            $rows = @(Get-TextContrast $w)
-            $o = [PSCustomObject]@{ Same = ($rows | Where-Object Name -eq 'same').Ratio; Plain = ($rows | Where-Object Name -eq 'plain').Ratio }
-            $w.Close(); $o
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlText $Arguments.Xaml
+                $rows = @(Get-TextContrast $w)
+                [PSCustomObject]@{ Same = ($rows | Where-Object Name -eq 'same').Ratio; Plain = ($rows | Where-Object Name -eq 'plain').Ratio }
+            }
+            finally { if ($w) { $w.Close() } }
         }
         $r.Same | Should -BeLessThan 1.5
         $r.Plain | Should -BeGreaterThan 10
@@ -320,9 +331,12 @@ Describe 'Contrast measurement' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'keeps the contrast ratio unrounded' {
         $xaml = '<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Probe" Width="300" Height="200"><StackPanel Background="#101010"><TextBlock x:Name="grey" Text="Grey" Foreground="#7A7A7A"/></StackPanel></Controls:MetroWindow>'
         $r = Invoke-WpfSta -Arguments @{ Xaml = $xaml } -Script {
-            $w = Open-TestWindow -XamlText $Arguments.Xaml
-            $v = (@(Get-TextContrast $w) | Where-Object Name -eq 'grey').Ratio
-            $w.Close(); $v
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlText $Arguments.Xaml
+                (@(Get-TextContrast $w) | Where-Object Name -eq 'grey').Ratio
+            }
+            finally { if ($w) { $w.Close() } }
         }
         [math]::Round($r, 2) | Should -Not -Be $r
     }
@@ -355,12 +369,13 @@ Describe 'State contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'li
     BeforeAll {
         $script:States = Invoke-WpfSta -Arguments @{ Config = $script:AppConfig; Dark = ($Theme -eq 'dark') } -Script {
             $cfg = $Arguments.Config
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
+            $w = $null
             try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
                 Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonNames $cfg.OptionsButtons -ActiveView $cfg.Views[0].Mode
                 , @(Get-StateContrast $w)
             }
-            finally { $w.Close() }
+            finally { if ($w) { $w.Close() } }
         }
     }
 
