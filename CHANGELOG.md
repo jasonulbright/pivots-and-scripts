@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Retake every guide image on the lab with 1 px gray button borders; the CMPivot results images show a real result of CLIENT01.
+
 ### Added
 
 - Add the button state window test: hover, focus and pressed states of the buttons in both themes.
