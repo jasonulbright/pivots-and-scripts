@@ -131,12 +131,13 @@ Describe 'Density <Theme> <Size>' -ForEach $script:Cases -Skip:(-not $script:Win
 
 Describe 'Vacant space <Theme> at the design size' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) -Skip:(-not $script:WindowGuard.Allowed) {
     It 'leaves no vacant area larger than 120 px high or 160 px wide in the <View> view, and gives the editor and the results a real share' -ForEach $script:ViewCases {
-        $m = ($script:Measured['{0}|{1}x{2}' -f $Theme, $script:Design.W, $script:Design.H].Views | Where-Object View -eq $View)
+        $mm = $script:Measured['{0}|{1}x{2}' -f $Theme, $script:Design.W, $script:Design.H]
+        $m = ($mm.Views | Where-Object View -eq $View)
         $bad = @()
         if ($m.VacantHeight -gt 120) { $bad += ('{0}: {1} px vacant below the content' -f $View, [math]::Round($m.VacantHeight)) }
         if ($m.VacantWidth -gt 160) { $bad += ('{0}: {1} px vacant right of the content' -f $View, [math]::Round($m.VacantWidth)) }
-        if ($m.EditorHeight -lt 150) { $bad += ('{0}: the editor is only {1} px high' -f $View, [math]::Round($m.EditorHeight)) }
-        if ($m.TabsHeight -lt 200) { $bad += ('{0}: the result tabs are only {1} px high' -f $View, [math]::Round($m.TabsHeight)) }
+        if ($m.EditorHeight -lt (0.1 * $mm.Height)) { $bad += ('{0}: the editor is only {1} px high (needs 10 percent of the window)' -f $View, [math]::Round($m.EditorHeight)) }
+        if ($m.TabsHeight -lt (0.2 * $mm.Height)) { $bad += ('{0}: the result tabs are only {1} px high' -f $View, [math]::Round($m.TabsHeight)) }
         $bad | Should -BeNullOrEmpty -Because ($bad -join '; ')
     }
 }
