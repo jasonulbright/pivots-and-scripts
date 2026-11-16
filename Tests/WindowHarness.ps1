@@ -22,6 +22,16 @@ function Test-WindowTestsAllowed {
 }
 
 $script:HarnessRoot = Split-Path -Parent $PSScriptRoot
+
+# The design size of the main window: the work area of a maximized window in this session (a 1080p screen at 100 percent
+# scaling gives 1920x1032). The tests read it here and hardcode no pixel size except the 1024x720 minimum-size case.
+# A session with a work area as small as the minimum-size case (a CI runner) gets a floor of 1280x800, so that the two cases differ.
+function Get-DesignSize {
+    Add-Type -AssemblyName PresentationFramework -ErrorAction SilentlyContinue
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $w = [Math]::Max(1280, [int]$wa.Width); $h = [Math]::Max(800, [int]$wa.Height)
+    [pscustomobject]@{ W = $w; H = $h; Key = ('{0}x{1}' -f $w, $h) }
+}
 . "$PSScriptRoot\WindowMeasure.ps1"
 
 if (-not (Test-Path variable:global:HarnessSession)) { $global:HarnessSession = $null }
@@ -37,7 +47,7 @@ $script:HarnessBootstrap = {
     Import-Module (Join-Path $Root 'Lib\SuiteCommon\SuiteCommon.psd1') -Global -DisableNameChecking
 
     function Open-TestWindow {
-        param([string]$XamlPath, [bool]$Dark = $true, [double]$Width = 1440, [double]$Height = 900, [string]$XamlText)
+        param([string]$XamlPath, [bool]$Dark = $true, [double]$Width = 0, [double]$Height = 0, [string]$XamlText)
         [xml]$xaml = if ($XamlText) { $XamlText } else { [System.IO.File]::ReadAllText($XamlPath) }
         $reader = New-Object System.Xml.XmlNodeReader $xaml
         $w = [System.Windows.Markup.XamlReader]::Load($reader)
@@ -46,6 +56,7 @@ $script:HarnessBootstrap = {
         $visible = ($env:SUITE_VISIBLE_WINDOWS -eq '1')
         $w.Left = $(if ($visible) { 80 } else { -32000 }); $w.Top = $(if ($visible) { 80 } else { -32000 })
         $w.ShowInTaskbar = $visible
+        if ($Width -le 0 -or $Height -le 0) { $wa = [System.Windows.SystemParameters]::WorkArea; $Width = [Math]::Max(1280, [int]$wa.Width); $Height = [Math]::Max(800, [int]$wa.Height) }
         $w.Width = $Width; $w.Height = $Height
         [void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($w, $(if ($Dark) { 'Dark.Steel' } else { 'Light.Blue' }))
         $w.Show()

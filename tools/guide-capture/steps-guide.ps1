@@ -4,7 +4,7 @@
 $dataDir = Join-Path $env:LOCALAPPDATA 'SignalRidgeLabs\PivotsAndScripts'
 Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
 $win = Start-App 'start-pivotsandscripts.ps1' 'Pivots and Scripts'
-Size-Win $win 1440 900
+Maximize-Win $win
 $win = Find-Top 'Pivots and Scripts' 10
 $work = Join-Path $OutDir 'work'; New-Item -ItemType Directory $work -Force | Out-Null
 function Idle([int]$sec = 180) {
@@ -42,9 +42,11 @@ function Open-Library([string]$item) {
 
 Section 'first run' {
     Shot $win 'start-first-run'; Dump-Tree $win 'main'
+    Extra 'sample main' { Sample-El (Get-El $win 'btnConnect') 'btnConnect'; Sample-El (Get-El $win 'btnPivot') 'btnPivot'; Sample-El (Get-El $win 'btnOptions') 'btnOptions' }
     Invoke-El (Get-El $win 'btnConnect'); Answer 'connect-without-connection' 'btnPrimary'
     Invoke-El (Get-El $win 'btnOptions'); $d = Find-Last 'Options' 10; Shot $d 'options-empty'; Dump-Tree $d 'options'
     Set-Text (Get-El $d 'txtSiteCode') $Capture.SiteCode; Set-Text (Get-El $d 'txtSmsProvider') $Capture.SMSProvider; Shot $d 'options-connection'
+    Extra 'sample options' { Sample-El (Get-El $d 'btnOK') 'btnOK'; Sample-El (Get-El $d 'btnCancel') 'btnCancel' }
     Select-El (Find-Role $d 'ListItem' 'Run Scripts'); Start-Sleep -Milliseconds 600; Shot $d 'options-run-scripts'
     Select-El (Find-Role $d 'ListItem' 'About'); Start-Sleep -Milliseconds 600; Shot $d 'options-about'
     Select-El (Find-Role $d 'ListItem' 'Connection'); Start-Sleep -Milliseconds 400

@@ -1,7 +1,7 @@
 function Show-PasParameterDialog {
     $definitions=@(Get-PasParameters $ui.editor.Text)
     $xaml=@'
-<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Script Parameters" Width="580" Height="500" WindowStartupLocation="CenterOwner" TitleCharacterCasing="Normal" ShowIconOnTitleBar="False">
+<Controls:MetroWindow xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro" Title="Script Parameters" Width="580" Height="500" SizeToContent="Height" MinHeight="260" MaxHeight="720" WindowStartupLocation="CenterOwner" TitleCharacterCasing="Normal" ShowIconOnTitleBar="False">
  <Window.Resources><ResourceDictionary>
   <ResourceDictionary.MergedDictionaries>
    <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml"/>
@@ -40,8 +40,9 @@ function Show-PasParameterDialog {
    <Setter Property="Template" Value="{StaticResource ThemedButtonTemplate}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
    <Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Margin" Value="3"/>
-   <Setter Property="Padding" Value="10,5"/>
+   <Setter Property="Height" Value="26"/>
+   <Setter Property="Margin" Value="4,2"/>
+   <Setter Property="Padding" Value="10,0"/>
    <Setter Property="HorizontalContentAlignment" Value="Center"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>

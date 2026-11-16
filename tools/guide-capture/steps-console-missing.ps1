@@ -10,7 +10,7 @@ if ($patched -eq $t) { throw 'The module lookup function was not found. The miss
 Set-Content -LiteralPath $f -Value $patched -Encoding UTF8
 Remove-Item Env:SMS_ADMIN_UI_PATH -ErrorAction SilentlyContinue
 $win = Start-App 'start-pivotsandscripts.ps1' 'Pivots and Scripts'
-Size-Win $win 1440 900
+Maximize-Win $win
 $win = Find-Top 'Pivots and Scripts' 10
 $before = Get-ElText (Get-El $win 'status')
 Invoke-El (Get-El $win 'btnConnect')

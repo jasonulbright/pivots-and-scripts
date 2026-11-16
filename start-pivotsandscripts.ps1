@@ -284,6 +284,8 @@ $ui.btnHistory.Add_Click({try{$path=Get-PasFilePath 'Session JSON|*.json';if($pa
 $ui.toggleTheme.Add_Toggled({$dark=$ui.toggleTheme.IsOn;[void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($window,$(if($dark){'Dark.Steel'}else{'Light.Blue'}));$ui.txtThemeLabel.Text=if($dark){'Dark Theme'}else{'Light Theme'};Set-ButtonTheme -IsDark $dark;Update-SidebarButtonTheme;Update-TitleBarBrushes;Set-PasHighlighting})
 $window.Add_SourceInitialized({Set-ButtonTheme -IsDark $ui.toggleTheme.IsOn;Update-SidebarButtonTheme;Update-TitleBarBrushes})
 $window.Add_Closing({param($s,$e) if($script:work){$e.Cancel=$true;$script:work.Control.Stop=$true;$script:work.Stopped=$true;$ui.status.Text='Stopping local waiting. Close again after the worker finishes.';return};try{Save-PasSession;Save-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')}catch{if($SmokeTest){[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'work\smoke.log'),$_.ToString())}else{$e.Cancel=$true;Show-PasError $_}}})
+# The first start, with no saved window state, opens maximized: the design size is a 1080p work area.
+if (-not (Test-Path -LiteralPath (Join-Path $dataRoot 'windowstate.json'))) { $window.WindowState = [System.Windows.WindowState]::Maximized }
 Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json')
 # Footer: the shared footer style of SuiteCommon and the site connection at the right end. Select it to open Options.
 $window.Add_Loaded({
