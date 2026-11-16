@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Open maximized on a 1080p work area, with compact buttons, boxes, rows and sidebar.
+- Share the free height between the editor and the results.
+- Size the Script Parameters dialog to its content.
+
+### Added
+
+- Test the density and the vacant space at the work area of the session.
+- Take every guide image maximized, and list guide images that no capture run produced.
+
 ## [2026.11.15.0016] - 2026-11-15
 
 ## 4 sidebar buttons now dim when disabled

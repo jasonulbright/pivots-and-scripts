@@ -39,8 +39,9 @@ function Show-PasScriptsDialog {
    <Setter Property="Template" Value="{StaticResource ThemedButtonTemplate}"/>
    <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
    <Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Margin" Value="3"/>
-   <Setter Property="Padding" Value="10,5"/>
+   <Setter Property="Height" Value="26"/>
+   <Setter Property="Margin" Value="4,2"/>
+   <Setter Property="Padding" Value="10,0"/>
    <Setter Property="HorizontalContentAlignment" Value="Center"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
