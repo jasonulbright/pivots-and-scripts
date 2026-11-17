@@ -68,4 +68,3 @@ Also changed: the mutating functions (`New-PasManagedScript`, `Set-PasScriptAppr
 - `Out-GridView` and the file dialogs are not run. The handlers are tested with a stand-in for the file picker.
 - One command of the module is not run: the catch branch for a `ValidateSet` value that is not a constant (the parser rejects such a script first).
 - The AdminService error path is tested with a stand-in response. Windows PowerShell 5.1 raises `WebException`; PowerShell 7 raises another exception type and the app does not target it.
-- The settings save in SuiteCommon is not atomic. The fix belongs in `app-packager-suite`.
