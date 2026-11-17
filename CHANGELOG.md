@@ -13,6 +13,7 @@
 - Test the density and the vacant space at the work area of the session.
 - Take every guide image maximized, and list guide images that no capture run produced.
 - Retake the guide and README images at 1080p, in both themes.
+- Add the guard that every README image is a guide image with a capture step.
 
 ### Fixed
 
