@@ -14,6 +14,10 @@
 - Take every guide image maximized, and list guide images that no capture run produced.
 - Retake the guide and README images at 1080p, in both themes.
 
+### Fixed
+
+- Guard the buttons of the vendored SuiteCommon dialogs: the check no longer skips them, and the vendored SuiteCommon gives its dialogs ThemedButtonStyle.
+
 ## [2026.11.15.0016] - 2026-11-15
 
 ## 4 sidebar buttons now dim when disabled
