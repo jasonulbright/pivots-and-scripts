@@ -65,6 +65,19 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
+# Stops the processes that earlier runs of this tool recorded in the ledger on the lab VM (process id and start time), and nothing else.
+# No process is stopped by a command-line pattern: another session may own a process that matches (vault: testing-policy, 'Process rules on a lab VM').
+$stopRecorded = @'
+param($ledger)
+if (Test-Path -LiteralPath $ledger) {
+    foreach ($line in @(Get-Content -LiteralPath $ledger)) {
+        $id, $ticks = $line -split '\|', 2
+        $p = Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue
+        if ($p -and $p.Id -ne $PID -and $p.StartTime.Ticks -eq [long]$ticks) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+    }
+    Remove-Item -LiteralPath $ledger -Force -ErrorAction SilentlyContinue
+}
+'@
 $repo = (Resolve-Path (Join-Path $here '..\..')).Path
 $app = 'pivots-and-scripts'
 $images = Join-Path $repo 'docs\images'
@@ -124,10 +137,10 @@ try {
         Start-Sleep -Seconds 15
     }
     foreach ($run in @(@{ Steps = 'steps-guide.ps1' }, @{ Steps = 'steps-console-missing.ps1' })) {
-        # A fresh copy for each run. Stop only the leftovers of an earlier capture of this app.
+        # A fresh copy for each run. Stop only the processes that an earlier capture recorded in its ledger, by process id.
         Invoke-Command $session {
             param($d)
-            Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like "*$d\*" -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            & ([scriptblock]::Create($using:stopRecorded)) (Join-Path $d 'ui\run.pids')
             Start-Sleep -Seconds 2
             if (Test-Path $d) { Remove-Item $d -Recurse -Force }
             New-Item -ItemType Directory $d, (Join-Path $d 'ui') -Force | Out-Null
@@ -216,11 +229,11 @@ try {
 }
 finally {
     # Each cleanup runs on its own, so that a failed cleanup cannot replace the original error.
-    # Order: stop the task, stop the powershell.exe processes of this folder, remove the task, remove the folder,
+    # Order: stop the task, stop the processes that this run recorded in its ledger, remove the task, remove the folder,
     # release the lock, close the session. Nothing then writes into the folder or the lock after its removal.
     if ($session -and $haveLock) {
         try { Invoke-Command $session { param($t) Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Stopping the scheduled task failed: $($_.Exception.Message)" }
-        try { Invoke-Command $session { param($r) Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like "*$r\*" -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2 } -ArgumentList $root } catch { Write-Warning "Stopping the capture processes failed: $($_.Exception.Message)" }
+        try { Invoke-Command $session { param($r) & ([scriptblock]::Create($using:stopRecorded)) (Join-Path $r 'ui\run.pids'); Start-Sleep -Seconds 2 } -ArgumentList $root } catch { Write-Warning "Stopping the capture processes failed: $($_.Exception.Message)" }
         try { Invoke-Command $session { param($t) Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Cleanup of the scheduled task failed: $($_.Exception.Message)" }
         try { Invoke-Command $session { param($r) Remove-Item $r -Recurse -Force -ErrorAction SilentlyContinue } -ArgumentList $root } catch { Write-Warning "Cleanup of $root failed: $($_.Exception.Message)" }
         # Remove the lock only when this capture took it.
