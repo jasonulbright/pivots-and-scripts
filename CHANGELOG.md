@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Show the header of every generated result column in Title Case words (ResourceID as Resource ID, Target_Count as Target Count) and keep the case in the grid header style; a window test reads the drawn header text in both themes.
 - Guard the buttons of the vendored SuiteCommon dialogs: the check no longer skips them, and the vendored SuiteCommon gives its dialogs ThemedButtonStyle.
 - Vendor SuiteCommon with the atomic settings save: the settings file is written to a temp file and replaced in one step, so a failed write cannot leave it truncated.
 - Capture tool lock follows D-16: the lock text is owner|pid|start, a lock is stale only after 30 minutes with no running owner process, a live owner lock is never removed, a removed lock is reported, and the holder refreshes it.
