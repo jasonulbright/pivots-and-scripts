@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.18.0017] - 2026-11-18
+
+## 11 changes: Title Case headers, 1080p layout, atomic settings save
+
 ### Changed
 
 - Open maximized on a 1080p work area, with compact buttons, boxes, rows and sidebar.
