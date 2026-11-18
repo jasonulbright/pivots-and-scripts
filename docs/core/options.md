@@ -8,7 +8,7 @@ The dialog has three pages: **Connection**, **Run Scripts** and **About**. **OK*
 
 ## When to use it
 
-Use it at the first start, when the site or the provider changes, and to read the version.
+Use it at the first start, when the site or the provider changes, and to view the version.
 
 ## Requirements
 

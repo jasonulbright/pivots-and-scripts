@@ -4,8 +4,8 @@
 
 ### Changed
 
-- Use ConfigMgr terms in the guide and the README.
-- Use plain verbs such as View, Review and See in the headings, steps and error message table, instead of Read.
+- Name the Configuration Manager console in the error message for a missing ConfigurationManager module.
+- Use the verbs View, Review and See in the guide headings, steps and error message table, instead of Read.
 
 ## [2026.11.18.0017] - 2026-11-18
 

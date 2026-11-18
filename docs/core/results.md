@@ -8,7 +8,7 @@ The **Results** tab has one row for each result, with the columns `TargetDevice`
 
 ## When to use it
 
-Use it to read the answers of a run, to hand them to someone else, and to narrow a check to the devices that matter.
+Use it to see the answers of a run, to hand them to someone else, and to narrow a check to the devices that matter.
 
 ## Requirements
 
