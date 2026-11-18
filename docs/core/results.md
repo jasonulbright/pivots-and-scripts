@@ -8,7 +8,7 @@ The **Results** tab has one row for each result, with the columns `TargetDevice`
 
 ## When to use it
 
-Use it to read the answers of a run, to hand them to someone else, and to narrow a check to the devices that matter.
+Use it to see the answers of a run, to hand them to someone else, and to narrow a check to the devices that matter.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ A finished run. See [CMPivot](cmpivot.md) or [Run Scripts](run-scripts.md).
 
 ## Steps
 
-### Read the tabs
+### Review the tabs
 
 1. Select **Results**. Each row is one answer. You can sort a column, reorder the columns and select several rows.
 
@@ -95,8 +95,8 @@ Without a selected row, a message says to select rows first.
 | Message or symptom | Cause | Fix |
 |---|---|---|
 | A device shows `No response within timeout`. | No result arrived in 300 seconds. | Run again later. The device can still run the operation. |
-| A device shows `Result error`. | The tool could not read the result page. | Read the detail. Check the connection. |
-| A device shows `Query failed` or `Script failed`. | The query or the script failed on the device. | Read the exit code and the detail. |
+| A device shows `Result error`. | The tool could not read the result page. | Review the detail. Check the connection. |
+| A device shows `Query failed` or `Script failed`. | The query or the script failed on the device. | Review the exit code and the detail. |
 | A device shows `Stopped waiting`. | You selected **Stop Waiting**. | Run again if you need the answer. |
 
 ## Links

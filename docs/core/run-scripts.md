@@ -51,7 +51,7 @@ Use it for an action or a check that CMPivot cannot do, with a script that your 
 
 ![The window after No](../images/submit-cancelled.png)
 
-### Read, approve, deny or remove the site scripts
+### View, approve, deny or remove the site scripts
 
 1. Select **Site Scripts**. The list shows the scripts of the site with the columns `Name`, `State`, `Author`, `Approver`, `Last Updated` and `GUID`. **Refresh** reads the list again.
 

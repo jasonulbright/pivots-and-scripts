@@ -22,7 +22,7 @@ Use it before every run, and again after you change the connection or the target
 1. Select the kind in the list on the left of the target box: **Collection**, **Device**, **Pattern** or **List**.
 2. Type the input in the target box. See the table below.
 3. Select **Resolve Targets**.
-4. Read the line under the box: `Matched`, `Active`, `Not clients` and `Unknown`.
+4. Review the line under the box: `Matched`, `Active`, `Not clients` and `Unknown`.
 
 | Kind | Input |
 |---|---|
@@ -41,7 +41,7 @@ Use it before every run, and again after you change the connection or the target
 
 A name that does not exist in Configuration Manager counts as **Unknown**. The unknown names do not get a run. A device without a Configuration Manager client counts as **Not clients**. It shows **Not a client** at run time.
 
-### Read the snapshot
+### View the snapshot
 
 Select **View Snapshot**. The tool opens the **Devices** tab.
 

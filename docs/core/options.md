@@ -8,7 +8,7 @@ The dialog has three pages: **Connection**, **Run Scripts** and **About**. **OK*
 
 ## When to use it
 
-Use it at the first start, when the site or the provider changes, and to read the version.
+Use it at the first start, when the site or the provider changes, and to view the version.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ A value that you saved wins. The suite launcher fills an empty value through the
 
 The setting works only where the site lets authors approve their own scripts. Microsoft recommends that site setting only for a lab. When the site refuses, the script stays waiting for approval and the status line shows the reason.
 
-### Read the version
+### View the version
 
 Select **About**. The page shows the version of the tool and of the shared module, and the license note.
 

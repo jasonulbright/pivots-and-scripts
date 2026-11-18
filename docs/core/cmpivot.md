@@ -85,7 +85,7 @@ When all devices have answered, the status line shows `Completed.` with the numb
 |---|---|---|
 | `Select Resolve Targets first.` | No snapshot exists. | Select **Resolve Targets**. |
 | `The editor is empty.` | The editor has no text. | Type or open a query. |
-| A device shows `Query failed`. | The query has an error, or the device refused it. | Read the detail on the **Devices** tab. Check the syntax. |
+| A device shows `Query failed`. | The query has an error, or the device refused it. | Review the detail on the **Devices** tab. Check the syntax. |
 | A device shows `Not a client`. | The device has no Configuration Manager client. | Install the client, or remove the device. |
 | The run ends at once with a trust error. | The computer does not trust the provider certificate. | See [Network](../reference/network.md). |
 

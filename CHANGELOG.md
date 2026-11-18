@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Name the Configuration Manager console in the error message for a missing ConfigurationManager module.
+- Use the verbs View, Review and See in the guide headings, steps and error message table, instead of Read.
+
 ## [2026.11.18.0017] - 2026-11-18
 
 ## 11 changes: Title Case headers, 1080p layout, atomic settings save

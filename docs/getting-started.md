@@ -4,7 +4,7 @@ This page shows how to start Pivots and Scripts, set the connection and test it.
 
 ## What it does
 
-The tool is a workbench for realtime device checks. You pick devices, send one CMPivot query or one approved script to them, and read the answers in a grid. Each run is saved with its targets, its text and its results.
+The tool is a workbench for realtime device checks. You pick devices, send one CMPivot query or one approved script to them, and see the answers in a grid. Each run is saved with its targets, its text and its results.
 
 ## When to use it
 
