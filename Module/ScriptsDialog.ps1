@@ -90,7 +90,11 @@ function Show-PasScriptsDialog {
     </Trigger>
    </Style.Triggers>
   </Style>
+  <Style x:Key="GridHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource MahApps.Styles.DataGridColumnHeader}">
+   <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+  </Style>
   <Style x:Key="ThemedDataGridStyle" TargetType="DataGrid" BasedOn="{StaticResource MahApps.Styles.DataGrid}">
+   <Setter Property="ColumnHeaderStyle" Value="{StaticResource GridHeaderStyle}"/>
    <Setter Property="RowStyle" Value="{StaticResource ThemedDataGridRow}"/>
   </Style>
   <Style x:Key="GridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource MahApps.Styles.DataGridCell}">
@@ -114,7 +118,7 @@ function Show-PasScriptsDialog {
    </StackPanel>
    <TextBox x:Name="comment" Margin="3" Controls:TextBoxHelper.Watermark="Approval or denial comment"/>
   </DockPanel>
-  <DataGrid x:Name="grid" Style="{StaticResource ThemedDataGridStyle}" CellStyle="{StaticResource GridCellStyle}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" CanUserAddRows="False">
+  <DataGrid x:Name="grid" Style="{StaticResource ThemedDataGridStyle}" ColumnHeaderStyle="{StaticResource GridHeaderStyle}" CellStyle="{StaticResource GridCellStyle}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" CanUserAddRows="False">
    <DataGrid.Columns>
     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="200"/>
     <DataGridTextColumn Header="State" Binding="{Binding State}" Width="Auto"/>
