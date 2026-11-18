@@ -9,7 +9,7 @@ A Configuration Manager workbench for realtime device investigation. Resolve a s
 
 ![Pivots and Scripts](docs/images/results.png)
 
-Read the [user guide](docs/index.md) for every view, dialog and setting.
+See the [user guide](docs/index.md) for every view, dialog and setting.
 
 ## Install
 

@@ -69,7 +69,7 @@ The tool saves the window position and size when you close it. The next start us
 | Message or symptom | Cause | Fix |
 |---|---|---|
 | `Unsupported session file.` | The file is not a session file of this tool. | Pick another file. |
-| `The history could not be saved. The log file has the details.` | The tool cannot write to its data folder. | Check the rights on the folder. Read the log file. |
+| `The history could not be saved. The log file has the details.` | The tool cannot write to its data folder. | Check the rights on the folder. Review the log file. |
 
 ## Links
 
