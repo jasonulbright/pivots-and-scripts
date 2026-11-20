@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Add tooltips to 36 controls in the main window and the Site Scripts window. A guard test checks that each audited control keeps one.
+
 ## [2026.11.20.0018] - 2026-11-20
 
 ## 3 changes: ConfigMgr wording and a safer capture tool
@@ -10,7 +14,6 @@
 
 - Name the Configuration Manager console in the missing module error message.
 - Use the verbs View, Review and See instead of Read in the guide.
-- Add tooltips to 36 controls in the main window and the Site Scripts window. A guard test checks that each audited control keeps one.
 
 ### Fixed
 
