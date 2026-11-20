@@ -6,6 +6,7 @@
 
 - Name the Configuration Manager console in the error message for a missing ConfigurationManager module.
 - Use the verbs View, Review and See in the guide headings, steps and error message table, instead of Read.
+- Add tooltips to 36 controls in the main window and the Site Scripts window. A guard test checks that each audited control keeps one.
 
 ### Fixed
 

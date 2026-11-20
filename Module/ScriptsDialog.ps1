@@ -110,13 +110,13 @@ function Show-PasScriptsDialog {
   <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,10" Text="Scripts in Run Scripts on this site. Configuration Manager enforces approval rules: by default, an author cannot approve their own script. Scripts that belong to a Configuration Manager feature, such as CMPivot, are not listed."/>
   <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-    <Button x:Name="btnRefresh" Content="Refresh" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnUse" Content="Use GUID" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnApprove" Content="Approve" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnDeny" Content="Deny" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnRemove" Content="Remove" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnRefresh" ToolTip="Reload the list of scripts from the site." Content="Refresh" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnUse" ToolTip="Put the GUID of the selected script in the Script GUID box and close this window." Content="Use GUID" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnApprove" ToolTip="Approve the selected script after you confirm. Uses the comment. Needs approval rights on the site." Content="Approve" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnDeny" ToolTip="Deny the selected script after you confirm. Uses the comment. It cannot run until it is approved again." Content="Deny" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnRemove" ToolTip="Remove the selected script from the site after you confirm. This cannot be undone." Content="Remove" Style="{StaticResource DialogButton}"/>
    </StackPanel>
-   <TextBox x:Name="comment" Margin="3" Controls:TextBoxHelper.Watermark="Approval or denial comment"/>
+   <TextBox x:Name="comment" ToolTip="Enter an optional comment to send with an approval or a denial." Margin="3" Controls:TextBoxHelper.Watermark="Approval or denial comment"/>
   </DockPanel>
   <DataGrid x:Name="grid" Style="{StaticResource ThemedDataGridStyle}" ColumnHeaderStyle="{StaticResource GridHeaderStyle}" CellStyle="{StaticResource GridCellStyle}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" CanUserAddRows="False">
    <DataGrid.Columns>
