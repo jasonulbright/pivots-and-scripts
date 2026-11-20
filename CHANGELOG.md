@@ -2,15 +2,19 @@
 
 ## [Unreleased]
 
+## [2026.11.20.0018] - 2026-11-20
+
+## 3 changes: ConfigMgr wording and a safer capture tool
+
 ### Changed
 
-- Name the Configuration Manager console in the error message for a missing ConfigurationManager module.
-- Use the verbs View, Review and See in the guide headings, steps and error message table, instead of Read.
+- Name the Configuration Manager console in the missing module error message.
+- Use the verbs View, Review and See instead of Read in the guide.
 - Add tooltips to 36 controls in the main window and the Site Scripts window. A guard test checks that each audited control keeps one.
 
 ### Fixed
 
-- The guide capture tool stops only the processes that it started, by process id. It no longer stops PowerShell processes by command-line pattern, which could end the window of another session. A new guard test fails when a tool script stops a process by a pattern.
+- Stop only the processes the capture tool started, not other PowerShell windows.
 
 ## [2026.11.18.0017] - 2026-11-18
 
