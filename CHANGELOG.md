@@ -2,9 +2,13 @@
 
 ## [Unreleased]
 
+## [2026.11.20.0019] - 2026-11-20
+
+## 1 change: tooltips
+
 ### Changed
 
-- Add tooltips to 36 controls in the main window and the Site Scripts window. A guard test checks that each audited control keeps one.
+- Add tooltips to buttons and fields.
 
 ## [2026.11.20.0018] - 2026-11-20
 
