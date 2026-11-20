@@ -112,9 +112,9 @@ function Show-PasScriptsDialog {
    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
     <Button x:Name="btnRefresh" ToolTip="Reload the list of scripts from the site." Content="Refresh" Style="{StaticResource DialogButton}"/>
     <Button x:Name="btnUse" ToolTip="Put the GUID of the selected script in the Script GUID box and close this window." Content="Use GUID" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnApprove" ToolTip="Approve the selected script after you confirm. Uses the comment. Needs approval rights on the site." Content="Approve" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnDeny" ToolTip="Deny the selected script after you confirm. Uses the comment. It cannot run until it is approved again." Content="Deny" Style="{StaticResource DialogButton}"/>
-    <Button x:Name="btnRemove" ToolTip="Remove the selected script from the site after you confirm. This cannot be undone." Content="Remove" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnApprove" ToolTip="Approve the selected script after you confirm, with the optional comment." Content="Approve" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnDeny" ToolTip="Deny the selected script after you confirm, with the optional comment." Content="Deny" Style="{StaticResource DialogButton}"/>
+    <Button x:Name="btnRemove" ToolTip="Remove the selected script from the site after you confirm; this cannot be undone." Content="Remove" Style="{StaticResource DialogButton}"/>
    </StackPanel>
    <TextBox x:Name="comment" ToolTip="Enter an optional comment to send with an approval or a denial." Margin="3" Controls:TextBoxHelper.Watermark="Approval or denial comment"/>
   </DockPanel>

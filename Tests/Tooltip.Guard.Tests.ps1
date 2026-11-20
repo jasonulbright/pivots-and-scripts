@@ -2,7 +2,7 @@
 # Tooltip guard. It parses MainWindow.xaml and the XAML here-string of the Site Scripts dialog.
 # It creates no WPF control, opens no window and needs no ConfigMgr site.
 #
-# Rules: every audited control has a ToolTip that is not empty, is ASCII, ends in a period and is at most 200 characters.
+# Rules: every audited control has a ToolTip that is not empty, is ASCII, ends in a period and is at most 110 characters.
 # Controls that are skipped on purpose: OK, Cancel and Use Parameters buttons (the label says it all), read-only
 # output boxes, DataGrid columns, the Options dialog page list, and controls that the code builds at run time.
 
@@ -77,9 +77,7 @@ BeforeAll {
         $doc = Get-TtDocument -File $File
         if ($Name -like 'tab:*') {
             $header = $Name.Substring(4)
-            $node = @($doc.SelectNodes('//*[local-name()="TabItem"]') | Where-Object {
-                    $_.SelectSingleNode('.//*[local-name()="TextBlock"][@Text="' + $header + '"]')
-                }) | Select-Object -First 1
+            $node = $doc.SelectSingleNode('//*[local-name()="TabItem"]//*[local-name()="TextBlock"][@Text="' + $header + '"]')
         } else {
             $node = @($doc.SelectNodes('//*[@*[local-name()="Name" and namespace-uri()="' + $script:TtKeyNamespace + '"]]') | Where-Object {
                     $_.GetAttribute('Name', $script:TtKeyNamespace) -eq $Name
@@ -96,12 +94,12 @@ Describe 'Tooltip guard' {
         $tip | Should -Not -BeNullOrEmpty -Because "$Name in $File needs a ToolTip"
     }
 
-    It 'audits <File> <Name>: the ToolTip is ASCII, ends in a period and is at most 200 characters' -ForEach $script:TtAudited {
+    It 'audits <File> <Name>: the ToolTip is ASCII, ends in a period and is at most 110 characters' -ForEach $script:TtAudited {
         $tip = Get-TtToolTip -File $File -Name $Name
         $tip | Should -Not -BeNullOrEmpty
         $tip | Should -Match '^[\x20-\x7E]+$' -Because 'a ToolTip is ASCII text'
         $tip | Should -Match '\.$' -Because 'a ToolTip is a sentence that ends in a period'
-        $tip.Length | Should -BeLessOrEqual 200
+        $tip.Length | Should -BeLessOrEqual 110
         $tip.Trim() | Should -BeExactly $tip
     }
 }
