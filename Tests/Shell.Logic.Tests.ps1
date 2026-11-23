@@ -92,6 +92,8 @@ BeforeEach {
     $module = $script:StubModule
     $dataRoot = Join-Path $TestDrive ('data-' + [guid]::NewGuid().ToString('N'))
     $logPath = Join-Path $dataRoot 'Logs\test.log'
+    # No site in these tests: the session files go to Sessions in the data root, the old place.
+    $script:sessionDir = Join-Path $dataRoot 'Sessions'
     $script:prefs = @{ SiteCode = 'MCM'; SMSProvider = 'cm01.contoso.com'; ApproveAfterSubmit = $false }
     $script:persisted = @{ SiteCode = 'MCM'; SMSProvider = 'cm01.contoso.com' }
     $script:session = [pscustomobject]@{ SchemaVersion = 1; ID = [guid]::NewGuid().ToString(); Created = [DateTime]::UtcNow.ToString('o'); Steps = @() }

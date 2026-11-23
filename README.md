@@ -113,7 +113,7 @@ The light theme and the dark theme differ in colors only. Every blue box has whi
 
 ## Storage
 
-Queries and scripts are ordinary files in `Library\` or any folder you choose. Preferences, window position and sessions are stored in `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. A session is saved before the first operation is sent. Each step records the query or script text and hash, operator, site, provider, parameters, targets, timestamps, raw responses, device states and results. **Open Session** opens a saved session; it does not run anything again.
+Queries and scripts are ordinary files in `Library\` or any folder you choose. The AppPackager Suite launcher chooses the site. The tool keeps the sessions, the site code and the SMS Provider per site under `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\pivots-and-scripts`, and the first start after an update copies the old data and keeps the old files. The approval rule, the window position and the logs stay in `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. A session is saved before the first operation is sent. Each step records the query or script text and hash, operator, site, provider, parameters, targets, timestamps, raw responses, device states and results. **Open Session** opens a saved session; it does not run anything again.
 
 ## Limits
 

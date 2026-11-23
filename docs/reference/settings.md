@@ -18,18 +18,18 @@ None.
 
 ### Reset the tool
 
-Close the tool and delete the folder `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. The next start uses the defaults.
+Close the tool and delete the folder `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. To reset one site, also delete the folder `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\pivots-and-scripts`, for example for site AB1. The next start uses the defaults.
 
 ## Options and settings of this page
 
 | Setting | File | Default |
 |---|---|---|
-| `SiteCode` | `preferences.json` | Empty |
-| `SMSProvider` | `preferences.json` | Empty |
+| `SiteCode` | `prefs.json` of the site (`preferences.json` with no site chosen) | Empty |
+| `SMSProvider` | `prefs.json` of the site (`preferences.json` with no site chosen) | Empty |
 | `ApproveAfterSubmit` | `preferences.json` | `false` |
 | Window position, size and state | `windowstate.json` | Centered, 1400 by 900 |
 
-The launcher variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER` fill an empty site code or provider. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session and are not saved.
+The suite launcher chooses the site, and the site code and the provider belong to that site. See [Sites](../core/options.md#sites). With no site chosen, the launcher variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER` fill an empty site code or provider. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session and are not saved.
 
 ## Limits
 

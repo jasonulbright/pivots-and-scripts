@@ -28,11 +28,15 @@ $reader=[Xml.XmlNodeReader]::new([xml][IO.File]::ReadAllText((Join-Path $PSScrip
 $window=[Windows.Markup.XamlReader]::Load($reader)
 $ui=@{}
 foreach($name in @('btnPivot','btnScript','btnHistory','toggleTheme','txtThemeLabel','library','libraryFilter','btnOpen','btnSave','btnSaveSession','btnNewSession','heading','btnOptions','btnSiteScripts','btnConnect','targetKind','targetInput','btnImport','btnResolve','targetSummary','btnTargets','editor','editorLabel','editorPosition','btnCheck','btnFind','findText','replaceText','btnReplace','btnRun','btnStop','btnSubmit','guidLabel','scriptGuid','btnParameters','resultFilter','btnCsv','btnJson','btnCopy','btnGrid','btnSelectionScript','btnSelectionPivot','results','devices','raw','pipeline','resultTabs','status')) { $ui[$name]=$window.FindName($name) }
-$script:prefs=Read-SuiteSettings -Path $prefsPath -Defaults @{SiteCode='';SMSProvider='';ApproveAfterSubmit=$false}
-# The suite launcher hands its site code and provider to each tool it starts.
-# A value saved in this tool wins; the launcher value fills an empty one; command-line values override both for this session only.
-if(-not $script:prefs.SiteCode -and $env:SUITE_CM_SITECODE){$script:prefs.SiteCode=[string]$env:SUITE_CM_SITECODE}
-if(-not $script:prefs.SMSProvider -and $env:SUITE_CM_PROVIDER){$script:prefs.SMSProvider=[string]$env:SUITE_CM_PROVIDER}
+# The site (Q-112f): the launcher chooses it. The first start for a site copies the old sessions and site settings into
+# sites\<SITE>\tools\pivots-and-scripts and keeps the old files. With no site this tool keeps its old paths.
+# The smoke test uses its own temporary data root and never reads or writes the real data root or the real sites folder.
+$script:Site=if($SmokeTest){Resolve-SuiteToolSite -Tool 'pivots-and-scripts' -ToolRoot $PSScriptRoot -LegacyPrefsPath $prefsPath -DataRoot (Join-Path $dataRoot 'AppPackagerData') -LocalRoot $dataRoot -NoMigration -IgnoreEnvironment}else{Resolve-SuiteToolSite -Tool 'pivots-and-scripts' -ToolRoot $PSScriptRoot -LegacyPrefsPath $prefsPath -LocalRoot ([Environment]::GetFolderPath('LocalApplicationData'))}
+try{$script:sessionDir=Get-PasSessionDirectory -Site $script:Site -DataRoot $dataRoot -Create}
+catch{Write-PasLog ('The site folder could not be created: {0}' -f $_.Exception.Message);$script:Site=[pscustomobject]@{Active=$false;Reason='The site folder could not be created. This tool uses its old data location for this session.'};$script:sessionDir=Get-PasSessionDirectory -Site $script:Site -DataRoot $dataRoot}
+# The site code and the SMS Provider come from the site. With no site, the suite launcher values fill an empty one.
+# Command-line values override both for this session only.
+$script:prefs=Read-PasPreference -Path $prefsPath -Site $script:Site
 $script:prefs.SiteCode=([string]$script:prefs.SiteCode).Trim().ToUpperInvariant();$script:prefs.SMSProvider=([string]$script:prefs.SMSProvider).Trim()
 $script:persisted=@{SiteCode=$script:prefs.SiteCode;SMSProvider=$script:prefs.SMSProvider}
 if($SiteCode){$script:prefs.SiteCode=$SiteCode.Trim().ToUpperInvariant()}
@@ -118,7 +122,7 @@ function Refresh-PasResults {
 function Save-PasSession {
     if(-not @($script:session.Steps).Count){return}
     if($script:step -and $script:work -and $script:work.Action -eq 'Run'){$script:step.Results=@($script:rows);$script:step.Devices=@($script:states.Values);$script:step.Raw=@($script:rawRecords);$script:step.ResultCount=$script:rows.Count}
-    Write-PasJson -Path (Join-Path $dataRoot ('Sessions\'+$script:session.ID+'.json')) -Value $script:session -Confirm:$false
+    Write-PasJson -Path (Join-Path $script:sessionDir ($script:session.ID+'.json')) -Value $script:session -Confirm:$false
 }
 function Update-PasFooter {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates in-window text only.')]
@@ -304,7 +308,10 @@ Restore-WindowState -Window $window -Path (Join-Path $dataRoot 'windowstate.json
 $window.Add_Loaded({
     try{Initialize-SuiteFooter -Window $window -StatusName 'status' -OnOpenOptions {if($script:work){return};try{Show-PasOptionsDialog}catch{Show-PasError $_}} | Out-Null}catch{Write-PasLog 'The footer was not set up.'}
     Update-PasFooter
+    $null=Start-SuiteSiteWatch -Window $window -Site $script:Site
 })
+if($script:Site.Active){Write-PasLog ('Site {0}; data in {1}' -f $script:Site.SiteFolder,$script:Site.ToolFolder) -Level INFO}
+elseif($script:Site.Reason -and $script:Site.Reason -notlike 'No site is chosen*'){Write-PasLog ('Site: {0}' -f $script:Site.Reason) -Level WARN}
 Set-PasMode 'Pivot';$ui.editor.Text='Disk | project Device, Name, FreeSpace';$timer.Start()
 if($SmokeTest){$smokeLog=Join-Path $PSScriptRoot 'work\smoke.log';[IO.Directory]::CreateDirectory((Split-Path $smokeLog))|Out-Null;[IO.File]::WriteAllText($smokeLog,'');$window.Dispatcher.Add_UnhandledException({param($s,$e) [IO.File]::AppendAllText($smokeLog,$e.Exception.ToString());$e.Handled=$true});$smokeTimer=[Windows.Threading.DispatcherTimer]::new();$smokeTimer.Interval=[TimeSpan]::FromSeconds(1);$smokeTimer.Add_Tick({try{$smokeTimer.Stop();[IO.File]::AppendAllText($smokeLog,"tick`r`n");if($ui.btnNewSession.TranslatePoint([Windows.Point]::new(0,$ui.btnNewSession.ActualHeight),$window).Y -gt $ui.txtThemeLabel.TranslatePoint([Windows.Point]::new(0,0),$window).Y){throw 'The sidebar buttons overlap the theme switch.'};Save-PasPreview 'dark';$ui.toggleTheme.IsOn=$false;Set-PasMode 'Script';$ui.editor.Text=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Library\Scripts\Service state.ps1'));Show-PasParameterDialog;if($script:parameters.ServiceName -ne 'CcmExec'){throw 'Parameter dialog default value failed.'};Show-PasOptionsDialog;Show-PasScriptsDialog;Save-PasPreview 'light';$ui.toggleTheme.IsOn=$true;Set-PasMode 'Pivot';[IO.File]::AppendAllText($smokeLog,"close`r`n");$window.Close()}catch{[IO.File]::AppendAllText($smokeLog,$_.Exception.ToString());$window.Dispatcher.InvokeShutdown()}});$smokeTimer.Start()}
 # Suite update notice: one shared daily lookup across the suite tools; the launcher installs.

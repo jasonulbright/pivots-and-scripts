@@ -1,6 +1,6 @@
 # Options dialog
 
-The Options dialog sets the connection and the approval rule, and shows the version of the tool.
+The Options dialog sets the connection and the approval rule, and shows the version of the tool. The suite launcher chooses the site. See [Sites](#sites).
 
 ## What it does
 
@@ -30,7 +30,9 @@ None.
 
 ![The message for an invalid site code](../images/options-site-code-invalid.png)
 
-A value that you saved wins. The suite launcher fills an empty value through the variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session.
+When the suite launcher chose a site, the **Site Code** box is read-only. Point to it to see the reason: the site is chosen in the AppPackager Suite launcher, and you restart the tool after you change it. The **SMS Provider** stays editable and is saved with the site.
+
+With no site chosen, a value that you saved wins. The suite launcher fills an empty value through the variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session.
 
 ### Set the approval rule
 
@@ -55,12 +57,24 @@ Use the switch at the bottom of the sidebar. The label shows **Dark Theme** or *
 
 ![The Options dialog in the light theme](../images/light-options.png)
 
+## Sites
+
+The AppPackager Suite launcher chooses the site. The tool keeps its site data under `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\pivots-and-scripts`, for example `sites\AB1\tools\pivots-and-scripts` and `sites\CD2\tools\pivots-and-scripts`. The site folder holds the saved sessions (`sessions`), the site code and the SMS Provider (`prefs.json`). A site does not show the sessions or the provider of another site. The approval rule, the window position, the log files and the library stay global.
+
+![The Site Code box when the launcher chose a site, with its tooltip](../images/options-site.png)
+
+A tool that is open keeps its site until you restart it. When the launcher chooses another site, for example CD2 while the window uses AB1, the footer says `The launcher now uses site CD2. This window keeps site AB1 until you restart it.`
+
+![The footer note after the launcher chose another site](../images/footer-site-note.png)
+
+The first start after an update copies the old sessions and the old connection into the site folder. The tool keeps the old files in `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`. Sessions that name another site are not copied into this site.
+
 ## Options and settings of this page
 
 | Setting | Effect | Default |
 |---|---|---|
-| Site Code | The 3-character site code. | Empty |
-| SMS Provider | The host name of the SMS Provider, without a URL or a path. | Empty |
+| Site Code | The 3-character site code. Read-only when the launcher chose a site. | Empty |
+| SMS Provider | The host name of the SMS Provider, without a URL or a path. Saved with the site. | Empty |
 | Approve scripts after submission | Approves each new script right after **Submit Script for Approval**. | Off |
 | Theme | Dark or light. The tool does not save it. | Dark |
 

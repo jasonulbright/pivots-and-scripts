@@ -22,12 +22,16 @@ None.
 
 | Path | Content |
 |---|---|
-| `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\preferences.json` | The connection and the approval rule. |
+| `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\preferences.json` | The approval rule. With no site chosen, also the connection. |
 | `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\windowstate.json` | The window position and size. |
 | `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\Logs\pivotsandscripts-yyyyMMdd.log` | The log file of one day. It holds the raw technical detail of errors. See below. |
-| `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\Sessions\<id>.json` | One file for each session: every step with its targets, text, parameters, raw responses and results. |
+| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\pivots-and-scripts\prefs.json` | The site code and the SMS Provider of the site, for example `AB1`. |
+| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\pivots-and-scripts\sessions\<id>.json` | One file for each session of the site: every step with its targets, text, parameters, raw responses and results. |
+| `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts\Sessions\<id>.json` | The sessions of the old layout. The tool reads them once, copies them to the site folder, and keeps them. With no site chosen, the tool writes sessions here. |
 | `Library\Pivots`, `Library\Scripts` | The queries and scripts of the library, in the program folder. **Save Editor File** writes here when you pick this folder. |
 | Files that you pick | The exports, the saved sessions and the imported lists. |
+
+The suite launcher chooses the site. The tool keeps the sessions and the connection per site, for example `sites\AB1\tools\pivots-and-scripts` and `sites\CD2\tools\pivots-and-scripts`. The first start after an update copies the old files into the site folder and keeps the old files. See [Sites](../core/options.md#sites).
 
 The tool writes one log file for each day: `Logs\pivotsandscripts-yyyyMMdd.log` under `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndScripts`, for example `pivotsandscripts-20261112.log`. The file holds the raw technical detail of errors, such as exception text and the reply of the administration service. The window never shows that text. The window shows a fixed sentence that ends `The log file has the details.` See [Error messages](error-messages.md). The tool never deletes a log file. Delete old files by hand.
 
