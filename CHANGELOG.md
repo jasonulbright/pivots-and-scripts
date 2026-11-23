@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.22.0020] - 2026-11-22
+
+## 1 change: data kept per site
+
 ### Changed
 
 - Keep sessions and site settings per site under the data folder.
