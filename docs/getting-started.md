@@ -80,7 +80,7 @@ None. The settings are on [Options dialog](core/options.md).
 ## Limits
 
 - The connection applies to the whole window. Resolve the targets again after a change.
-- The command-line parameters `-SiteCode` and `-SMSProvider` override the saved values for one session.
+- The command-line parameters `-SiteCode` and `-SMSProvider` override the saved values for one session. When the suite launcher chose a site, `-SiteCode` has no effect.
 
 ## Troubleshooting
 

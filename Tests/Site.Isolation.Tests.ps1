@@ -169,6 +169,13 @@ Describe 'Pivots and Scripts keeps its data per site' {
         }
     }
 
+    It 'ignores another site code in the settings it saves' {
+        $s = @{ SiteCode = 'ZZZ'; SMSProvider = 'ab1-sms.example.com'; ApproveAfterSubmit = $true }
+        Save-PasPreference -Path $script:layout.Prefs -Preference $s -Site $script:ab1.Site | Should -BeTrue
+        (Get-Content -LiteralPath (Join-Path $script:ab1.Site.ToolFolder 'prefs.json') -Raw | ConvertFrom-Json).SiteCode | Should -Be 'AB1'
+        (Get-Content -LiteralPath $script:layout.Prefs -Raw | ConvertFrom-Json).SiteCode | Should -Be 'AB1'
+    }
+
     Context 'back to site AB1' {
         It 'shows the AB1 values and sessions again' {
             $back = Start-ToolForSite -Layout $script:layout -Site 'AB1' -DataRoot $script:data
@@ -269,6 +276,10 @@ Describe 'Pivots and Scripts source builds no site store from the data root' {
     It 'makes the Site Code field read-only with the launcher tooltip when a site is active' {
         $script:optionsText.Contains('$txtSite.IsReadOnly = $true') | Should -BeTrue
         $script:optionsText.Contains('The site is chosen in the AppPackager Suite launcher. Restart this tool after you change it.') | Should -BeTrue
+    }
+
+    It 'ignores the -SiteCode parameter when the launcher chose a site' {
+        $script:scriptText.Contains('if($SiteCode -and $script:Site.Active)') | Should -BeTrue
     }
 
     It 'starts the site watch for the footer' {

@@ -39,7 +39,8 @@ catch{Write-PasLog ('The site folder could not be created: {0}' -f $_.Exception.
 $script:prefs=Read-PasPreference -Path $prefsPath -Site $script:Site
 $script:prefs.SiteCode=([string]$script:prefs.SiteCode).Trim().ToUpperInvariant();$script:prefs.SMSProvider=([string]$script:prefs.SMSProvider).Trim()
 $script:persisted=@{SiteCode=$script:prefs.SiteCode;SMSProvider=$script:prefs.SMSProvider}
-if($SiteCode){$script:prefs.SiteCode=$SiteCode.Trim().ToUpperInvariant()}
+if($SiteCode -and $script:Site.Active){Write-PasLog 'The -SiteCode parameter is ignored: the launcher chose the site.' -Level WARN}
+elseif($SiteCode){$script:prefs.SiteCode=$SiteCode.Trim().ToUpperInvariant()}
 if($SMSProvider){$script:prefs.SMSProvider=$SMSProvider.Trim()}
 Initialize-SuiteTheme -Window $window -IsDarkGetter { $ui.toggleTheme.IsOn } -ActiveViewGetter {$script:mode} -ViewButtons @(@{Name='Pivot';Button=$ui.btnPivot},@{Name='Script';Button=$ui.btnScript}) -WorkflowButtons @($ui.btnPivot,$ui.btnScript) -OptionsButtons @($ui.btnHistory,$ui.btnOptions)
 [void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($window,'Dark.Steel')

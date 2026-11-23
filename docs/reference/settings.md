@@ -29,7 +29,7 @@ Close the tool and delete the folder `%LOCALAPPDATA%\SignalRidgeLabs\PivotsAndSc
 | `ApproveAfterSubmit` | `preferences.json` | `false` |
 | Window position, size and state | `windowstate.json` | Centered, 1400 by 900 |
 
-The suite launcher chooses the site, and the site code and the provider belong to that site. See [Sites](../core/options.md#sites). With no site chosen, the launcher variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER` fill an empty site code or provider. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session and are not saved.
+The suite launcher chooses the site, and the site code and the provider belong to that site. See [Sites](../core/options.md#sites). With no site chosen, the launcher variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER` fill an empty site code or provider. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session and are not saved. When the launcher chose a site, the tool ignores `-SiteCode`.
 
 ## Limits
 

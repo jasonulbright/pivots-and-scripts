@@ -32,7 +32,7 @@ None.
 
 When the suite launcher chose a site, the **Site Code** box is read-only. Point to it to see the reason: the site is chosen in the AppPackager Suite launcher, and you restart the tool after you change it. The **SMS Provider** stays editable and is saved with the site.
 
-With no site chosen, a value that you saved wins. The suite launcher fills an empty value through the variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session.
+With no site chosen, a value that you saved wins. The suite launcher fills an empty value through the variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER`. The command-line parameters `-SiteCode` and `-SMSProvider` override both for one session. When the launcher chose a site, the tool ignores `-SiteCode` and writes a line to the log.
 
 ### Set the approval rule
 
