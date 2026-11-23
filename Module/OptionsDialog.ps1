@@ -129,6 +129,11 @@ function Show-PasOptionsDialog {
     [void]$connection.Children.Add((New-PasOptionsText 'Configuration Manager Connection' 18 -Weight SemiBold -Margin '0,0,0,12'))
     [void]$connection.Children.Add((New-PasOptionsText 'Site Code' 14 -Bold -Margin '0,4,0,2'))
     $txtSite = [Windows.Controls.TextBox]::new(); $txtSite.Text = $script:prefs.SiteCode; $txtSite.MaxLength = 3; $txtSite.Width = 80; $txtSite.HorizontalAlignment = 'Left'; $txtSite.Height = 28; [Windows.Automation.AutomationProperties]::SetAutomationId($txtSite, 'txtSiteCode')
+    if ($script:Site.Active) {
+        # The launcher chooses the site (Q-112f). The field shows it and does not change it.
+        $txtSite.IsReadOnly = $true
+        $txtSite.ToolTip = 'The site is chosen in the AppPackager Suite launcher. Restart this tool after you change it.'
+    }
     [void]$connection.Children.Add($txtSite)
     [void]$connection.Children.Add((New-PasOptionsText 'SMS Provider' 14 -Bold -Margin '0,10,0,2'))
     $txtProvider = [Windows.Controls.TextBox]::new(); $txtProvider.Text = $script:prefs.SMSProvider; $txtProvider.Height = 28; [Windows.Automation.AutomationProperties]::SetAutomationId($txtProvider, 'txtSmsProvider')
@@ -158,12 +163,12 @@ function Show-PasOptionsDialog {
 
     $dialog.FindName('btnOK').Add_Click({
         try {
-            $newSite = $txtSite.Text.Trim().ToUpperInvariant(); $newProvider = $txtProvider.Text.Trim()
+            $newSite = $(if ($script:Site.Active) { [string]$script:prefs.SiteCode } else { $txtSite.Text.Trim().ToUpperInvariant() }); $newProvider = $txtProvider.Text.Trim()
             if ($newSite -and $newSite -notmatch '^[A-Z0-9]{3}$') { throw "Site code '$newSite' is invalid. A site code is 3 characters, A-Z or 0-9." }
             if ($newProvider -and $newProvider -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$') { throw "SMS Provider '$newProvider' is invalid. Enter a host name or FQDN without a URL or path." }
             $changed = ($newSite -ne $script:prefs.SiteCode) -or ($newProvider -ne $script:prefs.SMSProvider)
             $settings = Get-PasSettingsToSave -Entered @{SiteCode=$newSite;SMSProvider=$newProvider;ApproveAfterSubmit=[bool]$chkApprove.IsChecked} -Session $script:prefs -Persisted $script:persisted
-            if (-not (Save-SuiteSettings -Path $prefsPath -Settings $settings)) { throw "The options could not be saved to $prefsPath." }
+            if (-not (Save-PasPreference -Path $prefsPath -Preference $settings -Site $script:Site)) { throw "The options could not be saved to $prefsPath." }
             $script:persisted.SiteCode = $settings.SiteCode; $script:persisted.SMSProvider = $settings.SMSProvider
             $script:prefs.SiteCode = $newSite; $script:prefs.SMSProvider = $newProvider; $script:prefs.ApproveAfterSubmit = [bool]$chkApprove.IsChecked
             Update-PasFooter

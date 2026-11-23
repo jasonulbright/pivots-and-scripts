@@ -504,6 +504,35 @@ function Sort-PasRows {
     } else { { $cell = $_.PSObject.Properties[$Property]; if ($cell) { $cell.Value } else { '' } } }
     $Rows | Sort-Object -Property @{Expression=$key} -Descending:$Descending
 }
+function Get-PasPreferenceDefault {
+    # The defaults of the preferences. SiteCode and SMSProvider belong to the site; ApproveAfterSubmit is global.
+    @{SiteCode='';SMSProvider='';ApproveAfterSubmit=$false}
+}
+function Read-PasPreference {
+    # Site keys (SiteCode, SMSProvider) come from the site; the other keys come from the preferences file in the data root.
+    # With no site, the suite launcher variables fill an empty site code and an empty provider.
+    param([Parameter(Mandatory)][string]$Path,$Site)
+    if (-not $Site) { $Site = [pscustomobject]@{ Active = $false } }
+    $prefs = Read-SuiteToolPrefs -Path $Path -Defaults (Get-PasPreferenceDefault) -Site $Site -SiteKeys @('SiteCode','SMSProvider')
+    if (-not ($Site -and $Site.Active)) {
+        if (-not $prefs.SiteCode -and $env:SUITE_CM_SITECODE) { $prefs.SiteCode = [string]$env:SUITE_CM_SITECODE }
+        if (-not $prefs.SMSProvider -and $env:SUITE_CM_PROVIDER) { $prefs.SMSProvider = [string]$env:SUITE_CM_PROVIDER }
+    }
+    $prefs
+}
+function Save-PasPreference {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Writes the small preferences files of this tool.')]
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][hashtable]$Preference,$Site)
+    if (-not $Site) { $Site = [pscustomobject]@{ Active = $false } }
+    Save-SuiteToolPrefs -Path $Path -Settings $Preference -Site $Site -SiteKeys @('SiteCode','SMSProvider')
+}
+function Get-PasSessionDirectory {
+    # The folder of the session files: the site store 'sessions' when a site is active, else Sessions in the data root.
+    param([Parameter(Mandatory)][string]$DataRoot,$Site,[switch]$Create)
+    if (-not $Site) { $Site = [pscustomobject]@{ Active = $false } }
+    # -ErrorAction Stop: the module scope of SuiteCommon does not see the caller preference, and a failed folder must throw.
+    Resolve-SuiteToolPath -Site $Site -Name 'sessions' -LegacyPath (Join-Path $DataRoot 'Sessions') -Create:$Create -ErrorAction Stop
+}
 function Get-PasSettingsToSave {
     param([hashtable]$Entered,[hashtable]$Session,[hashtable]$Persisted)
     # A connection value the dialog left unchanged can be a command-line override; the saved value is kept for it.

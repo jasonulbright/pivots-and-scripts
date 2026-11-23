@@ -41,7 +41,7 @@ If you select **Test Connection** before you set the connection, a message tells
 ### Set the connection
 
 1. Select **Options** in the sidebar.
-2. Type the **Site Code**, for example `MCM`. A site code has 3 characters.
+2. Type the **Site Code**, for example `MCM`. A site code has 3 characters. When the suite launcher chose a site, the box is read-only and shows that site.
 3. Type the **SMS Provider** name, for example `cm01.contoso.com`. Use the name that the certificate of the provider carries, normally the FQDN.
 4. Select **OK**.
 
@@ -80,7 +80,7 @@ None. The settings are on [Options dialog](core/options.md).
 ## Limits
 
 - The connection applies to the whole window. Resolve the targets again after a change.
-- The command-line parameters `-SiteCode` and `-SMSProvider` override the saved values for one session.
+- The command-line parameters `-SiteCode` and `-SMSProvider` override the saved values for one session. When the suite launcher chose a site, `-SiteCode` has no effect.
 
 ## Troubleshooting
 

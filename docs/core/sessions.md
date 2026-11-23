@@ -4,7 +4,7 @@ A session holds every step of your work: each run with its targets, its text, it
 
 ## What it does
 
-The tool saves the session before it sends the first operation of a run, and again when the run ends. You can save a copy to a file, open an earlier session file and start a new session.
+The tool saves the session before it sends the first operation of a run, and again when the run ends. The session file goes to the folder of the active site. See [Sites](options.md#sites). You can save a copy to a file, open an earlier session file and start a new session.
 
 ## When to use it
 

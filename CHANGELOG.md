@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Keep sessions and site settings per site under the data folder.
+
 ## [2026.11.20.0019] - 2026-11-20
 
 ## 1 change: tooltips
