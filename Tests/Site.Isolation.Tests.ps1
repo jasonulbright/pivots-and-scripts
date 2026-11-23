@@ -7,6 +7,7 @@
 BeforeAll {
     . "$PSScriptRoot\TestHelpers.ps1"
     Import-AppModule
+    Import-SuiteCommonGlobal
 
     $script:envNames = 'APP_PACKAGER_DATA_ROOT', 'APP_PACKAGER_SITE', 'SUITE_CM_SITECODE', 'SUITE_CM_PROVIDER'
     $script:envSaved = @{}
